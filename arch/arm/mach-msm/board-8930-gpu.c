@@ -161,7 +161,7 @@ static struct platform_device device_kgsl_3d0 = {
 
 void __init msm8930_init_gpu(void)
 {
-	if (cpu_is_msm8930aa())
+	//if (cpu_is_msm8930aa())
 		kgsl_3d0_pdata.pwrlevel[0].gpu_freq = 450000000;
 
 	platform_device_register(&device_kgsl_3d0);
