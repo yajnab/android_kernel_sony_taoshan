@@ -25,6 +25,7 @@
 #include <mach/socinfo.h>
 #include <linux/ion.h>
 #include <mach/ion.h>
+#include <mach/msm_xo.h> //Taylor
 
 #include "devices.h"
 #include "board-8930.h"
@@ -156,10 +157,14 @@ static int mipi_dsi_samsung_panel_power(int on)
 {
 	static struct regulator *reg_l23,*reg_l2;
 	int rc;
+	static struct msm_xo_voter *cxo_clock; //create an XO vote
+	static const char *id = "CXO_clock"; //Create an ID for the driver
 
 	printk(KERN_ERR "%s: MIPI : %d\n", __func__, on);
 	pr_info("%s(%d): init=%d\n", __func__, on, dsi_power_on);
 		
+	
+	cxo_clock = msm_xo_get(MSM_XO_TCXO_D0, id); //create a handle for D0 buffer of XO 
 
 	if (!dsi_power_on) {
 
@@ -240,6 +245,7 @@ static int mipi_dsi_samsung_panel_power(int on)
 			pr_err("set_optimum_mode l2 failed, rc=%d\n", rc);
 			return -EINVAL;
 		}*/
+		msm_xo_mode_vote(cxo_clock, MSM_XO_MODE_ON); 
 		
 		rc = regulator_enable(reg_l23);
 		if (rc) {
@@ -267,6 +273,8 @@ static int mipi_dsi_samsung_panel_power(int on)
 		mdelay(1);
 		gpio_set_value(DISP_RST_GPIO, 1);
 		mdelay(10);
+
+		msm_xo_mode_vote(cxo_clock, MSM_XO_MODE_OFF);
 	} else {
 
 		//Pull Low GPIO 12 for suspend-->
@@ -313,10 +321,13 @@ static int mipi_dsi_chimei_panel_power(int on)
 {
 	static struct regulator *reg_l23,*reg_l2;
 	int rc;
+	static struct msm_xo_voter *cxo_clock; //create an XO vote
+	static const char *id = "CXO_clock"; //Create an ID for the driver
 
 	printk(KERN_ERR "%s: MIPI : %d\n", __func__, on);
 	pr_info("%s(%d): init=%d\n", __func__, on, dsi_power_on);
-		
+	
+	cxo_clock = msm_xo_get(MSM_XO_TCXO_D0, id); //create a handle for D0 buffer of XO 	
 
 	if (!dsi_power_on) {
 
@@ -398,6 +409,8 @@ static int mipi_dsi_chimei_panel_power(int on)
 			return -EINVAL;
 		}*/
 		
+		msm_xo_mode_vote(cxo_clock, MSM_XO_MODE_ON); 
+
 		rc = regulator_enable(reg_l23);
 		if (rc) {
 			pr_err("enable l23 failed, rc=%d\n", rc);
@@ -425,6 +438,8 @@ static int mipi_dsi_chimei_panel_power(int on)
 		mdelay(50);
 		gpio_set_value(DISP_RST_GPIO, 1);
 		mdelay(5);
+
+		msm_xo_mode_vote(cxo_clock, MSM_XO_MODE_OFF);
 	} else {
 
 		//Pull Low GPIO 12 for suspend-->

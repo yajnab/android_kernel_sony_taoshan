@@ -33,7 +33,7 @@
 #include <linux/fs.h>
 #include <linux/skbuff.h>
 #include <linux/wakelock.h>
-#include <mach/gpio.h> //HY,for hw id
+#include <mach/gpio.h>
 
 //#include <mach/regs-gpio.h>
 //#include <mach/gpio.h>
@@ -201,30 +201,7 @@ struct tsl2772_chip {
 
 static struct tsl2772_chip *chip;
 
-/*
-Board-8930.c (kernel\arch\arm\mach-msm)
 
-const char cci_board_type_str[][20] = 
-{
-"EVT board",
-"DVT1 board",	
-"DVT1-1 board",
-"DVT2 board",
-"DVT3 board",
-"PVT board",
-"MP board",
-""
-};
-
-Gpio.h (kernel\arch\arm\mach-msm\include\mach)	
-#define EVT_BOARD_HW_ID        1
-#define DVT1_BOARD_HW_ID      2
-#define DVT1_1_BOARD_HW_ID  3
-#define DVT2_BOARD_HW_ID      4
-#define DVT3_BOARD_HW_ID     5
-#define PVT_BOARD_HW_ID      6
-#define MP_BOARD_HW_ID       7
-*/
 
 
 #define golden_ga 3750
@@ -750,7 +727,7 @@ static void set_pltf_settings(struct tsl2772_chip *chip)
 	int cci_board_type = board_type_with_hw_id();
 
 	if (chip->blog)
-		printk("\n [andy_test] %s (board_type=%d) pvt=%d\n", __FUNCTION__, cci_board_type, PVT_BOARD_HW_ID);
+		printk("\n [andy_test] %s (board_type=%d) DVT3_1_HW_ID =%d\n", __FUNCTION__, cci_board_type, DVT3_1_BOARD_HW_ID );
 
 	if (s) {
 		dev_dbg(dev, "%s: form pltf data\n", __func__);
@@ -770,7 +747,7 @@ static void set_pltf_settings(struct tsl2772_chip *chip)
 		sh[TSL277X_PERSISTENCE] = PRX_PERSIST(1) | ALS_PERSIST(3);
 		sh[TSL277X_CONFIG] = 0;
 		
-		if(cci_board_type >= PVT_BOARD_HW_ID){
+		if(cci_board_type >= DVT3_1_BOARD_HW_ID ){
 			sh[TSL277X_PRX_PULSE_COUNT] = 50;//new
 		}else{
 			sh[TSL277X_PRX_PULSE_COUNT] = 70;//ori
@@ -1115,7 +1092,7 @@ static ssize_t taos_device_prx_offset_cal(struct device *dev,
 	int prox_cross_talk = 400;						  							// 設定 欲定的繞射值(maybe change)
 	int cci_board_type = board_type_with_hw_id();
 
-		if(cci_board_type >= PVT_BOARD_HW_ID)
+		if(cci_board_type >= DVT3_1_BOARD_HW_ID )
 		prox_cross_talk = 500;
 		else if(cci_board_type == DVT3_BOARD_HW_ID)
 		prox_cross_talk =  300;
@@ -1217,7 +1194,7 @@ static ssize_t taos_device_prx_pilth_cal(struct device *dev,
 // all kinds of panel ID shall utilize the value of ADC
 //		break;
 	default:
-		if(cci_board_type >= PVT_BOARD_HW_ID)
+		if(cci_board_type >= DVT3_1_BOARD_HW_ID )
 			chip->params.prox_th_max = p_avg + 500;  // new threshold high
 		else if(cci_board_type == DVT3_BOARD_HW_ID)
 			chip->params.prox_th_max = p_avg + 300;  // new threshold high
@@ -1306,7 +1283,7 @@ static ssize_t taos_device_prx_store(struct device *dev,
 	if (chip->params.prox_th_min > 1022)
 		chip->params.prox_th_min = 1022;  // set max to 1022
 
-	if(cci_board_type >= PVT_BOARD_HW_ID)
+	if(cci_board_type >= DVT3_1_BOARD_HW_ID )
 		chip->params.prox_th_max = value + 500;  // new threshold high
 	else if(cci_board_type == DVT3_BOARD_HW_ID)
 		chip->params.prox_th_max = value + 300;  // new threshold high
@@ -1408,7 +1385,7 @@ static ssize_t taos_device_prx_cal(struct device *dev,
 		if (chip->params.prox_th_min > 1022)
 			chip->params.prox_th_min = 1022;  // set max to 1022
 		
-		if(cci_board_type >= PVT_BOARD_HW_ID)
+		if(cci_board_type >= DVT3_1_BOARD_HW_ID )
 			chip->params.prox_th_max = p_avg + 500;  // new threshold high
 		else if(cci_board_type == DVT3_BOARD_HW_ID)
 			chip->params.prox_th_max = p_avg + 300;  // new threshold high

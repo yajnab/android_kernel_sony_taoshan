@@ -312,10 +312,18 @@ int read_back_information(void)
 	return 0;
 }
 
+int power_state_count = 1;
+
 static void power_state_detect_work(struct work_struct *work)
 {
 	struct msm_fb_data_type *mfd;
-	printk(" %s\n", __func__);
+
+	if (!(power_state_count%10)){
+		power_state_count = 1;
+		printk(" %s\n", __func__);
+	}
+	else
+		power_state_count++;
 
 	mfd = platform_get_drvdata(pdev_backup);
 

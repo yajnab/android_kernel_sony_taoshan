@@ -2010,7 +2010,7 @@ static int get_prop_batt_Tbat_mV(struct pm8921_chg_chip *chip) //S:YF
 	return (int)result.measurement;
 }
 
-#define MAX_TOLERABLE_BATT_TEMP_DDC	680
+#define MAX_TOLERABLE_BATT_TEMP_DDC	600
 static int get_prop_batt_temp(struct pm8921_chg_chip *chip)
 {
 	int rc;
@@ -2025,7 +2025,7 @@ static int get_prop_batt_temp(struct pm8921_chg_chip *chip)
 	pr_debug("batt_temp phy = %lld meas = 0x%llx\n", result.physical,
 						result.measurement);
 	if (result.physical > MAX_TOLERABLE_BATT_TEMP_DDC)
-		pr_err("BATT_TEMP= %d > 68degC, device will be shutdown\n",
+		pr_err("BATT_TEMP= %d > 60degC, device will be shutdown\n",
 							(int) result.physical);
 
 	return (int)result.physical;

@@ -53,23 +53,7 @@
 #include "f_rmnet_smd_sdio.c"
 #include "f_rmnet.c"
 #include "f_audio_source.c"
-
-#undef pr_debug
-#define pr_debug(fmt, ...) printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
 #include "f_mass_storage.c"
-
-#undef pr_debug
-#if defined(CONFIG_DYNAMIC_DEBUG)
-#define pr_debug(fmt, ...) \
-    dynamic_pr_debug(fmt, ##__VA_ARGS__)
-#elif defined(DEBUG)
-#define pr_debug(fmt, ...) \
-    printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
-#else
-#define pr_debug(fmt, ...) \
-    no_printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
-#endif
-
 #include "u_serial.c"
 #include "u_sdio.c"
 #include "u_smd.c"
@@ -81,23 +65,7 @@
 #include "u_data_hsuart.c"
 #include "f_serial.c"
 #include "f_acm.c"
-
-#undef pr_debug
-#define pr_debug(fmt, ...) printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
 #include "f_adb.c"
-
-#undef pr_debug
-#if defined(CONFIG_DYNAMIC_DEBUG)
-#define pr_debug(fmt, ...) \
-    dynamic_pr_debug(fmt, ##__VA_ARGS__)
-#elif defined(DEBUG)
-#define pr_debug(fmt, ...) \
-    printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
-#else
-#define pr_debug(fmt, ...) \
-    no_printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
-#endif
-
 #include "f_ccid.c"
 #include "f_mtp.c"
 #include "f_accessory.c"

@@ -16,6 +16,7 @@
 #include "msm.h"
 #include "msm_ispif.h"
 #include "msm_camera_i2c_mux.h"
+#include <mach/msm_xo.h>
 #include "../../../../base/base.h" //2012/07/24 
 
 int flash_on = 0;//2012/11/06
@@ -165,29 +166,8 @@ void msm_sensor_group_hold_off(struct msm_sensor_ctrl_t *s_ctrl)
 int32_t msm_sensor_set_fps(struct msm_sensor_ctrl_t *s_ctrl,
 						struct fps_cfg *fps)
 {
-    int new_fps = 0;//2013/01/28
-    
 	s_ctrl->fps_divider = fps->fps_div;
-    //B 2013/01/28
-    if (!strcmp(s_ctrl->sensordata->sensor_name, "ov7692")) {
-        new_fps = s_ctrl->msm_sensor_reg->output_settings->vt_pixel_clk
-                  / s_ctrl->msm_sensor_reg->output_settings->frame_length_lines
-                  * Q10
-                  / s_ctrl->msm_sensor_reg->output_settings->line_length_pclk
-                  / fps->fps_div;
 
-        if (new_fps != req_fps && (new_fps == 15 || new_fps == 30)) {
-            req_fps = new_fps;
-            if (new_fps == 15) {                
-                s_ctrl->func_tbl->sensor_setting(s_ctrl, MSM_SENSOR_REG_INIT, 1);
-                s_ctrl->func_tbl->sensor_setting(s_ctrl, MSM_SENSOR_UPDATE_PERIODIC, 1);
-            } else {
-                s_ctrl->func_tbl->sensor_setting(s_ctrl, MSM_SENSOR_REG_INIT, 0);
-                s_ctrl->func_tbl->sensor_setting(s_ctrl, MSM_SENSOR_UPDATE_PERIODIC, 0);
-            }            
-        }
-    }
-    //E 2013/01/28
 	return 0;
 }
 
@@ -696,10 +676,16 @@ int32_t msm_sensor_disable_i2c_mux(struct msm_camera_i2c_conf *i2c_conf)
 	return 0;
 }
 
+static struct msm_xo_voter *cam_cxo_clock = NULL;        //create an XO vote
+static const char *cam_cxo_id = "CXO_clock";          //Create an ID for the driver
+
 int32_t msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0;
 	struct msm_camera_sensor_info *data = s_ctrl->sensordata;
+
+    if (cam_cxo_clock == NULL)
+        cam_cxo_clock = msm_xo_get(MSM_XO_TCXO_D0, cam_cxo_id);   //create a handle for D0 buffer of XO
 	pr_err("%s: %d %s\n", __func__, __LINE__, data->sensor_name);
 	s_ctrl->reg_ptr = kzalloc(sizeof(struct regulator *)
 			* data->sensor_platform_info->num_vreg, GFP_KERNEL);
@@ -715,10 +701,12 @@ int32_t msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 		goto request_gpio_failed;
 	}
 
+    msm_xo_mode_vote(cam_cxo_clock, MSM_XO_MODE_ON);  //Vote to turn ON the clock buffer
 	rc = msm_camera_config_vreg(&s_ctrl->sensor_i2c_client->client->dev,
 			s_ctrl->sensordata->sensor_platform_info->cam_vreg,
 			s_ctrl->sensordata->sensor_platform_info->num_vreg,
 			s_ctrl->reg_ptr, 1);
+    msm_xo_mode_vote(cam_cxo_clock, MSM_XO_MODE_PIN_CTRL);      // XO MODE Pin selectable
 	if (rc < 0) {
 		pr_err("%s: regulator on failed\n", __func__);
 		goto config_vreg_failed;
@@ -782,6 +770,9 @@ request_gpio_failed:
 int32_t msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	struct msm_camera_sensor_info *data = s_ctrl->sensordata;
+
+    if (cam_cxo_clock == NULL)
+        cam_cxo_clock = msm_xo_get(MSM_XO_TCXO_D0, cam_cxo_id);   //create a handle for D0 buffer of XO
 	pr_err("%s\n", __func__);
 	if (data->sensor_platform_info->i2c_conf &&
 		data->sensor_platform_info->i2c_conf->use_i2c_mux)
@@ -802,6 +793,7 @@ int32_t msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 		s_ctrl->sensordata->sensor_platform_info->num_vreg,
 		s_ctrl->reg_ptr, 0);
 	msm_camera_request_gpio_table(data, 0);
+    msm_xo_mode_vote(cam_cxo_clock, MSM_XO_MODE_OFF);  //Vote to turn OFF the clock buffer
 	kfree(s_ctrl->reg_ptr);
 	return 0;
 }

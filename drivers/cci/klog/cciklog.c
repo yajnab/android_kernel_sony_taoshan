@@ -18,7 +18,9 @@
 #include <mach/msm_iomap.h>
 #include <mach/subsystem_restart.h>
 #include <linux/cciklog.h>
+#ifdef IMEM_CERT_RECORD
 #include <linux/ccistuff.h>
+#endif // #ifdef IMEM_CERT_RECORD
 #ifdef CCI_HW_ID
 #include <mach/gpio.h>
 #endif // #ifdef CCI_HW_ID
@@ -269,6 +271,7 @@ static int previous_normal_boot = -1;
 static unsigned long warmboot = 0;
 static unsigned long startup = 0;
 static int crashflag_inited = 0;
+static int unknownrebootflag_inited = 0;
 
 /*******************************************************************************
 * Local Function Declaration
@@ -453,7 +456,7 @@ static __inline__ void __cklc_append_char(unsigned int category, unsigned char c
 		pklog_category[KLOG_CRASH]->size = CCI_KLOG_CRASH_SIZE;
 #endif // #if CCI_KLOG_CRASH_SIZE
 #if CCI_KLOG_APPSBL_SIZE
-		if(strncmp(pklog_category[KLOG_CRASH]->name, KLOG_CATEGORY_NAME_APPSBL, strlen(KLOG_CATEGORY_NAME_APPSBL)) != 0
+		if(strncmp(pklog_category[KLOG_APPSBL]->name, KLOG_CATEGORY_NAME_APPSBL, strlen(KLOG_CATEGORY_NAME_APPSBL)) != 0
 		|| (int)pklog_category[KLOG_APPSBL]->index >= (int)(pklog_category[KLOG_APPSBL]->size - KLOG_CATEGORY_HEADER_SIZE))//category name not match or index over than valid size, that means garbage, so we clean it
 		{
 			memset(&pklog_category[KLOG_APPSBL]->name[0], 0, CCI_KLOG_APPSBL_SIZE);
@@ -786,10 +789,24 @@ void update_priority(void)
 #ifdef STUFF_CRASH_DEFAULT
 		crashflag = *(unsigned int *)(klog_magic + CCI_KLOG_SIZE - sizeof(int) * 2);
 		*(unsigned int *)(klog_magic + CCI_KLOG_SIZE - sizeof(int) * 2) = STUFF_CRASH_DEFAULT;
-		if((warmboot == 0xC0DEDEAD || crashflag == 0xC0DEDEAD)
-#else // #ifdef STUFF_CRASH_DEFAULT
-		if(warmboot == 0xC0DEDEAD
 #endif // #ifdef STUFF_CRASH_DEFAULT
+	}
+	if(unknownrebootflag_inited == 0)
+	{
+		unknownrebootflag_inited = 1;
+#ifdef CONFIG_WARMBOOT_CRASH
+		unknownrebootflag = *(unsigned int *)(klog_magic + CCI_KLOG_SIZE - sizeof(int) * 4);
+		*(unsigned int *)(klog_magic + CCI_KLOG_SIZE - sizeof(int) * 4) = CONFIG_WARMBOOT_CRASH;
+#endif // #ifdef CONFIG_WARMBOOT_CRASH
+	}
+
+	if(crashflag_inited == 1 || unknownrebootflag_inited == 1)
+	{
+#ifdef CONFIG_WARMBOOT_CRASH
+		if((warmboot == CONFIG_WARMBOOT_CRASH || crashflag == CONFIG_WARMBOOT_CRASH || unknownrebootflag == CONFIG_WARMBOOT_CRASH)
+#else // #ifdef CONFIG_WARMBOOT_CRASH
+		if(warmboot == 0xC0DEDEAD
+#endif // #ifdef CONFIG_WARMBOOT_CRASH
 			&& match_crash_priority(get_magic_priority(klog_magic)) == 0)//crash happened before, but klog magic was not recorded as crashed, so overwrite the klog magic to FIQ hang
 		{
 			strncpy(klog_magic, KLOG_MAGIC_FIQ_HANG, KLOG_MAGIC_LENGTH);
@@ -1240,10 +1257,12 @@ static long klog_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 							sysinfo.sbl_bootup_time = *sbl_bootup_time / 1000;//ms
 						}
 						else
-#endif // #ifdef IMEM_CERT_RECORD
 						{
 							sysinfo.sbl_bootup_time = 0;
 						}
+#else // #ifdef IMEM_CERT_RECORD
+						sysinfo.sbl_bootup_time = *sbl_bootup_time / 1000;//ms
+#endif // #ifdef IMEM_CERT_RECORD
 #else // #ifdef CCI_KLOG_SBL_BOOT_TIME_USE_IMEM
 						sysinfo.sbl_bootup_time = si.sbl_bootup_time / 1000;//ms
 #endif // #ifdef CCI_KLOG_SBL_BOOT_TIME_USE_IMEM
@@ -1780,6 +1799,7 @@ static long klog_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 
 #ifdef CCI_KLOG_SUPPORT_ATTRIBUTE
+#ifdef CCI_KLOG_MODEM_CRASH_LOG_USE_SMEM
 static ssize_t klog_show_modem_log_addr(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, 12, "0x%lX\n", modem_log_addr);//12 = "0x" + 8-digit hexdecimal number + '\n' + '\0'
@@ -1798,6 +1818,7 @@ static ssize_t klog_store_modem_log_addr(struct device *dev, struct device_attri
 }
 
 KLOG_RW_DEV_ATTR(modem_log_addr);
+#endif // #ifdef CCI_KLOG_MODEM_CRASH_LOG_USE_SMEM
 
 static ssize_t klog_show_prev_reboot_reason(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -1815,7 +1836,9 @@ KLOG_RO_DEV_ATTR(prev_normal_boot);
 
 static struct attribute *klog_attrs[] =
 {
+#ifdef CCI_KLOG_MODEM_CRASH_LOG_USE_SMEM
 	&dev_attr_modem_log_addr.attr,
+#endif // #ifdef CCI_KLOG_MODEM_CRASH_LOG_USE_SMEM
 	&dev_attr_prev_reboot_reason.attr,
 	&dev_attr_prev_normal_boot.attr,
 	NULL
@@ -1961,9 +1984,9 @@ static int __init cklc_init(void)
 	}
 
 #ifdef STUFF_CRASH_DEFAULT
-	kprintk("CCI KLog Collector Init: prev_normal_boot=%d, crashflag=0x%X\n", previous_normal_boot, crashflag);
+	kprintk("CCI KLog Init: prev_normal_boot=%d, crashflag=0x%X\n", previous_normal_boot, crashflag);
 #else // #ifdef STUFF_CRASH_DEFAULT
-	kprintk("CCI KLog Collector Init: prev_normal_boot=%d\n", previous_normal_boot);
+	kprintk("CCI KLog Init: prev_normal_boot=%d\n", previous_normal_boot);
 #endif // #ifdef STUFF_CRASH_DEFAULT
 
 //init klog magic
@@ -1976,7 +1999,7 @@ static int __init cklc_init(void)
 
 static void __exit cklc_exit(void)
 {
-	kprintk("CCI KLog Collector Exit\n");
+	kprintk("CCI KLog Exit\n");
 	klogmisc_exit();
 
 	return;
@@ -1987,7 +2010,7 @@ module_exit(cklc_exit);
 
 MODULE_AUTHOR("Kevin Chiang <Kevin_Chiang@Compalcomm.com>");
 MODULE_LICENSE("Proprietary");
-MODULE_DESCRIPTION("Kernel Log Collector");
+MODULE_DESCRIPTION("CCI kernel and logcat log collector");
 MODULE_VERSION(KLOG_VERSION);
 
 /*
