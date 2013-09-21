@@ -47,9 +47,10 @@
 #define INIT_ATR_OUT_MID       0xA00
 #define INIT_ATR_OUT_SAT       0xFFF
 #define ATR_OFFSET             0x00    
-#define THRESHOLD_DEAD_ZONE    3 // 255 /*lokesh:  just a hack */
-#define THRESHOLD_0            3 //20 /*lokesh: th0 should be same as deadzone*/       
-#define THRESHOLD_1            13
+// Luke 0701
+#define THRESHOLD_DEAD_ZONE    30 //3// 255 /*lokesh:  just a hack */
+#define THRESHOLD_0            30 //3 //20 /*lokesh: th0 should be same as deadzone*/       
+#define THRESHOLD_1            42//13
 #define INIT_ATR_GAIN          0.5 
 
 /*Controlling Over exposure*/
@@ -2305,6 +2306,21 @@ int32_t imx134_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 }
 /*E:20121103*/
 
+// Luke 0701
+int32_t imx134_sensor_write_digital_gain(struct msm_sensor_ctrl_t *s_ctrl, uint16_t upper_byte, uint16_t lower_byte);
+int32_t imx134_sensor_write_digital_gain(struct msm_sensor_ctrl_t *s_ctrl, uint16_t upper_byte, uint16_t lower_byte)
+{
+           
+           s_ctrl->func_tbl->sensor_group_hold_on(s_ctrl);
+           msm_camera_i2c_write(s_ctrl->sensor_i2c_client,0x020E, upper_byte << 8 | lower_byte, MSM_CAMERA_I2C_WORD_DATA);
+           msm_camera_i2c_write(s_ctrl->sensor_i2c_client,0x0210, upper_byte << 8 | lower_byte, MSM_CAMERA_I2C_WORD_DATA);
+           msm_camera_i2c_write(s_ctrl->sensor_i2c_client,0x0212, upper_byte << 8 | lower_byte, MSM_CAMERA_I2C_WORD_DATA);
+           msm_camera_i2c_write(s_ctrl->sensor_i2c_client,0x0214, upper_byte << 8 | lower_byte, MSM_CAMERA_I2C_WORD_DATA);
+           s_ctrl->func_tbl->sensor_group_hold_off(s_ctrl);
+           return 0;
+}
+
+
 //S  JackBB 2012/12/3 [Q111M]
 int32_t imx134_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
                uint16_t gain, uint32_t line, int32_t luma_info, uint16_t fgain)
@@ -2326,7 +2342,26 @@ int32_t imx134_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
        int32_t luma_avg, AvgYmaxStat, AvgYminStat;
        uint16_t debug_luma_avg, debug_luma_min, debug_luma_max;
        uint8_t debug_luma_select;
+       // Luke 0701 -->
+       uint16_t digital_gain, digital_gain_mod;
 
+       digital_gain = 1;
+       digital_gain_mod = 0;
+	if( gain > 224 )
+	{
+	    if( gain < 256 )
+	    {
+	       digital_gain = 1;
+		digital_gain_mod =  256 - gain;
+	    }
+	    else
+	    {
+	       digital_gain = gain/256;
+	       digital_gain_mod = gain%256;
+	    }
+	    gain = 224;
+	}
+       // Luke 0701 <--   
        luma_avg = luma_info & 0xFF;
        AvgYminStat = (luma_info & 0x7FF00) >> 8;
        AvgYmaxStat = (luma_info & 0x7FF00000) >> 20;
@@ -2442,6 +2477,8 @@ int32_t imx134_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
                      /* change to adaptive tone curve */
                      msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
                             TC_SWITCH_BYTE_ADDR, 0x00, MSM_CAMERA_I2C_BYTE_DATA);
+// Luke 0701 -->
+#if 1
                     /* if (luma_avg < THRESHOLD_0) {  lokesh: Here assuming th0 == th_deadzone
                             atr_out_noise = 0;
                             atr_out_mid = 0;
@@ -2455,6 +2492,18 @@ int32_t imx134_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
                      }
                      //atr_out_noise += ATR_OFFSET;
                      //atr_out_mid += ATR_OFFSET;
+#else					 
+                    if(luma_avg >= 100 ) {
+                            atr_out_noise = INIT_ATR_OUT_NOISE;
+                            atr_out_mid = INIT_ATR_OUT_MID;
+                     }
+			else
+			{
+                            atr_out_noise = INIT_ATR_OUT_NOISE * luma_avg / 100;
+                            atr_out_mid = INIT_ATR_OUT_MID *  luma_avg / 100;
+			}
+#endif
+// Luke 0701 <--			 
                      //CDBG("atr_out_noise=%d,atr_out_mid=%d",atr_out_noise,atr_out_mid);//bbtest
                      msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
                             TC_OUT_NOISE_WORD_ADDR, atr_out_noise,
@@ -2524,6 +2573,10 @@ int32_t imx134_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
        }
 #endif
         s_ctrl->func_tbl->sensor_group_hold_off(s_ctrl);
+
+        // Luke 0701 
+        imx134_sensor_write_digital_gain(s_ctrl, digital_gain, digital_gain_mod);
+
         return 0;
 }
 

@@ -2075,8 +2075,7 @@ static int check_command(struct fsg_common *common, int cmnd_size,
 	if (common->data_dir != DATA_DIR_UNKNOWN)
 		sprintf(hdlen, ", H%c=%u", dirletter[(int) common->data_dir],
 			common->data_size);
-	printk(KERN_INFO "SCSI command: %s;  Dc=%d, D%c=%u;  Hc=%d%s\n",
-	//VDBG(common, "SCSI command: %s;  Dc=%d, D%c=%u;  Hc=%d%s\n",
+	VDBG(common, "SCSI command: %s;  Dc=%d, D%c=%u;  Hc=%d%s\n",
 	     name, cmnd_size, dirletter[(int) data_dir],
 	     common->data_size_from_cmnd, common->cmnd_size, hdlen);
 
@@ -2463,9 +2462,6 @@ unknown_cmnd:
 		}
 		break;
 	}
-	if (reply < 0)
-			printk(KERN_INFO "do_scsi_command: %d,%d\n",reply,common->cmnd[0]);
-
 	up_read(&common->filesem);
 
 	if (reply == -EINTR || signal_pending(current))

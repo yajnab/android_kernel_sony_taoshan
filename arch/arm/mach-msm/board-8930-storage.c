@@ -253,7 +253,13 @@ static unsigned int sdc1_sup_clk_rates[] = {
 
 #ifdef CONFIG_MMC_MSM_SDC3_SUPPORT
 static unsigned int sdc3_sup_clk_rates[] = {
+	/**/
+	#ifdef ORG_VER
 	400000, 24000000, 48000000, 96000000, 192000000,
+	#else
+	400000, 24000000, 48000000
+	#endif
+	/**/
 };
 #endif
 
@@ -310,8 +316,14 @@ static struct mmc_platform_data msm8960_sdc3_data = {
 	.is_status_gpio_active_low = true,
 	.xpc_cap	= 1,
 	.uhs_caps	= (MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 |
+			/**/
+                        #ifdef ORG_VER
 			MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_DDR50 |
 			MMC_CAP_UHS_SDR104 | MMC_CAP_MAX_CURRENT_800),
+                        #else
+			MMC_CAP_UHS_DDR50 | MMC_CAP_MAX_CURRENT_800),
+                        #endif
+                        /**/
 	.mpm_sdiowakeup_int = MSM_MPM_PIN_SDC3_DAT1,
 	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
 };

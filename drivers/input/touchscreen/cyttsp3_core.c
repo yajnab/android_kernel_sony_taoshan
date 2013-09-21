@@ -442,6 +442,7 @@ struct cyttsp {
 //	int Panel_ID; 
 };
 //struct cyttsp *ttsp;
+int need_upgrade =1;
 int Panel_ID =0;
 bool raw_reflash =false;
 bool Enforce_update =false;
@@ -2166,10 +2167,9 @@ static int _cyttsp_boot_loader(struct cyttsp *ts)
 		(u16)fw->app_verl) >
 		(((u16)ts->bl_data.appver_hi << 8) +
 		(u16)ts->bl_data.appver_lo);
-#if 0
-			if(new_vers){				
-				get_vers =0x01;}
-#else  
+#if 1 //provide the flag to read the upgrade state for  F/W. if  0 : need ,  1: no need
+			if(new_vers)
+				need_upgrade =0;
 			get_vers =0x01;
 #endif 		
 	}else if(((u16)ts->bl_data.appver_hi << 8) +
@@ -2189,11 +2189,10 @@ static int _cyttsp_boot_loader(struct cyttsp *ts)
 		(u16)fw_1->app_verl) >
 		(((u16)ts->bl_data.appver_hi << 8) +
 		(u16)ts->bl_data.appver_lo);
-#if 0
-			if(new_vers){				
-				get_vers =0x02;}
-#else  
-		    	get_vers =0x02;		
+#if 1 //provide the flag to read the upgrade state for F/W. if  0 : need ,  1: no need
+			if(new_vers)
+				need_upgrade =0;
+		    	get_vers =0x02;
 #endif
 		}
 #endif
@@ -3638,6 +3637,19 @@ raw_show:
 static DEVICE_ATTR(raw_counts, S_IRUSR | S_IWUSR | S_IRGRP |S_IWGRP |
 	S_IROTH , cyttsp_raw_counts_show, NULL);
 
+static ssize_t cyttsp_drv_upgrade_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+//	struct cyttsp *ts = dev_get_drvdata(dev);
+	 int count = 0;
+
+	count += snprintf(buf + count, CY_MAX_PRBUF_SIZE, "%d\n",need_upgrade);
+        return count;
+
+}
+
+static DEVICE_ATTR(drv_upgrade, S_IRUSR | S_IWUSR | S_IRGRP |S_IWGRP |
+	S_IROTH , cyttsp_drv_upgrade_show, NULL);
 static void cyttsp_ldr_init(struct cyttsp *ts)
 {
 #ifdef CONFIG_TOUCHSCREEN_DEBUG
@@ -3701,6 +3713,9 @@ static void cyttsp_ldr_init(struct cyttsp *ts)
  
 	if (device_create_file(ts->dev, &dev_attr_raw_counts))
 		pr_err("%s: Cannot create raw_counts\n", __func__);
+	if (device_create_file(ts->dev, &dev_attr_drv_upgrade))
+		pr_err("%s: Cannot create drv_upgrade\n", __func__);
+
 
 #endif
 
@@ -3736,6 +3751,7 @@ static void cyttsp_ldr_free(struct cyttsp *ts)
 	#endif
 
 	device_remove_file(ts->dev, &dev_attr_raw_counts);
+	device_remove_file(ts->dev, &dev_attr_drv_upgrade);
 #endif
 }
 
@@ -3840,7 +3856,7 @@ _cyttsp_startup_retry:
 		ts->sysinfo_data.cid[2]);
 #endif
 
-
+	Enforce_update=true;  //don't to update Forcibly!
 	_cyttsp_change_state(ts, CY_ACTIVE_STATE);
 
 

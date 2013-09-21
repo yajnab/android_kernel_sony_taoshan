@@ -103,7 +103,8 @@ static int kgsl_iommu_fault_handler(struct iommu_domain *domain,
 		iommu_dev->ctx_id, fsr);
 
 	trace_kgsl_mmu_pagefault(iommu_dev->kgsldev, addr,
-			kgsl_mmu_get_ptname_from_ptbase(ptbase), 0);
+			kgsl_mmu_get_ptname_from_ptbase(ptbase), "NULL"); //Taylor--20130708
+			//kgsl_mmu_get_ptname_from_ptbase(ptbase), 0); //Taylor--20130708
 
 	return 0;
 }

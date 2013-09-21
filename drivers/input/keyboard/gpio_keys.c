@@ -449,7 +449,12 @@ static void gpio_keys_gpio_timer(unsigned long _data)
 {
 	struct gpio_button_data *bdata = (struct gpio_button_data *)_data;
 	Printlog("[%s] \n",__func__);
+//
+//hh, 20130613,[] implement-volumeKey-whileMakeACall.
+//
+#if 0
 	if(bdata->button->wakeup)
+#endif
 	wake_lock_timeout(&bdata->gpio_keys_wake_lock, HZ*3);
 	schedule_work(&bdata->work);
 }

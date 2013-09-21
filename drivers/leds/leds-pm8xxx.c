@@ -1043,8 +1043,8 @@ static int pm8xxx_led_pwm_mode_work(struct pm8xxx_led_data *led)
 					blinktuning_r[i] = blinktunvalue;
 				}
 				leveltime = leveltime / 1000;
-				period_time = leveltime*19;
-				rc = pm8xxx_pwm_lut_config(led->pwm_dev, period_time, blinktuning_r, leveltime, 1, 19, 0, 0, flags);
+				period_time = leveltime*13;
+				rc = pm8xxx_pwm_lut_config(led->pwm_dev, period_time, blinktuning_r, leveltime, 1, 13, 0, 0, flags);
 				led_rgb_write(led, SSBI_REG_ADDR_RGB_CNTL1,
 				255);
 				rc = pm8xxx_pwm_lut_enable(led->pwm_dev, 1);
@@ -1060,8 +1060,8 @@ static int pm8xxx_led_pwm_mode_work(struct pm8xxx_led_data *led)
 					blinktuning_g[i] = blinktunvalue;
 				}
 				leveltime = leveltime / 1000;
-				period_time = leveltime*19;
-				rc = pm8xxx_pwm_lut_config(led->pwm_dev, period_time, blinktuning_g, leveltime, 21, 19, 0, 0, flags);
+				period_time = leveltime*13;
+				rc = pm8xxx_pwm_lut_config(led->pwm_dev, period_time, blinktuning_g, leveltime, 21, 13, 0, 0, flags);
 				led_rgb_write(led, SSBI_REG_ADDR_RGB_CNTL1,
 				255);
 				rc = pm8xxx_pwm_lut_enable(led->pwm_dev, 1);
@@ -1077,8 +1077,8 @@ static int pm8xxx_led_pwm_mode_work(struct pm8xxx_led_data *led)
 					blinktuning_b[i] = blinktunvalue;
 				}
 				leveltime = leveltime / 1000;
-				period_time = leveltime*19;
-				rc = pm8xxx_pwm_lut_config(led->pwm_dev, period_time, blinktuning_b, leveltime, 41, 19, 0, 0, flags);
+				period_time = leveltime*13;
+				rc = pm8xxx_pwm_lut_config(led->pwm_dev, period_time, blinktuning_b, leveltime, 41, 13, 0, 0, flags);
 				led_rgb_write(led, SSBI_REG_ADDR_RGB_CNTL1,
 				255);
 				rc = pm8xxx_pwm_lut_enable(led->pwm_dev, 1);

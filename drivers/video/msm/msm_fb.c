@@ -56,7 +56,8 @@
 #define MSM_FB_NUM	3
 #endif
 #ifdef CONFIG_CCI_KLOG
-static unsigned int *unknownreboot= (void*)MSM_KLOG_BASE + 0x3FFFF0;
+#include <linux/ccistuff.h>
+//static unsigned int *unknownreboot= (void*)MSM_KLOG_BASE + 0x3FFFF0;
 #endif
 
 extern int display_id; //Taylor
@@ -1153,7 +1154,7 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	int *id;
 	int fbram_offset;
 	int remainder, remainder_mode2;
-	unsigned int unknownrebootflag = 0xAAAAAAAA;
+	//unsigned int unknownrebootflag = 0xAAAAAAAA;
 	/*
 	 * fb info initialization
 	 */
@@ -1512,7 +1513,7 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	    ("FrameBuffer[%d] %dx%d size=%d bytes is registered successfully!\n",
 	     mfd->index, fbi->var.xres, fbi->var.yres, fbi->fix.smem_len);
 #ifdef CONFIG_CCI_KLOG	
-	unknownrebootflag = *unknownreboot; 
+	//unknownrebootflag = *unknownreboot; 
 	printk("%s: Display decide unknownrebootflag = 0x%08x\n",__func__,unknownrebootflag);
 	if(unknownrebootflag != 0xc0dedead)
 	{
