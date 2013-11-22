@@ -10,6 +10,8 @@
 #define KLOG_IOCTL_RECORD_SYSINFO				_IO(KLOG_IOCTL_ID, 0x03)
 #define KLOG_IOCTL_FORCE_PANIC					_IO(KLOG_IOCTL_ID, 0x04)
 #define KLOG_IOCTL_FORCE_CRASH					_IO(KLOG_IOCTL_ID, 0x05)
+#define KLOG_IOCTL_SET_PANIC_WHEN_SUSPEND			_IO(KLOG_IOCTL_ID, 0x06)
+#define KLOG_IOCTL_SET_PANIC_WHEN_POWER_OFF			_IO(KLOG_IOCTL_ID, 0x07)
 //get category
 #define KLOG_IOCTL_GET_HEADER					_IO(KLOG_IOCTL_ID, 0x11)
 #define KLOG_IOCTL_GET_CRASH					_IO(KLOG_IOCTL_ID, 0x12)
@@ -33,7 +35,7 @@
 #define KLOG_DEV_PATH						"/dev/"KLOG_DEV_ID
 #define KLOG_CATEGORY_NAME_LENGTH				16
 
-//klog info(120)
+//klog info(135)
 #define KLOG_MAGIC_TOTAL_LENGTH					10		//magic*6+state*3+'\0'
 #define KLOG_MAGIC_LENGTH					6
 #define KLOG_STATE_LENGTH					3
@@ -53,6 +55,7 @@
 #define KLOG_USERDATA_COUNT_LENGTH				4
 #define KLOG_INTERNAL_COUNT_LENGTH				4
 #define KLOG_EXTERNAL_COUNT_LENGTH				4
+#define KLOG_SIM_STATE_LENGTH					15
 #define KLOG_INFO_LENGTH					(\
 									KLOG_MAGIC_TOTAL_LENGTH +\
 									KLOG_KERNEL_TIME_LENGTH +\
@@ -70,11 +73,12 @@
 									KLOG_RESUME_TIME_LENGTH +\
 									KLOG_USERDATA_COUNT_LENGTH +\
 									KLOG_INTERNAL_COUNT_LENGTH +\
-									KLOG_EXTERNAL_COUNT_LENGTH\
+									KLOG_EXTERNAL_COUNT_LENGTH +\
+									KLOG_SIM_STATE_LENGTH\
 								)
-//image info(283)
+//image info(303)
 #define KLOG_ANDROID_VERSION_LENGTH				10
-#define KLOG_MODEM_VERSION_LENGTH				20
+#define KLOG_MODEM_VERSION_LENGTH				40
 #define KLOG_FLEX_VERSION_LENGTH				25
 #define KLOG_RPM_VERSION_LENGTH					15
 #define KLOG_BOOTLOADER_VERSION_LENGTH				35
@@ -259,6 +263,7 @@ struct system_information
 	char		klog_userdata_count[KLOG_USERDATA_COUNT_LENGTH];
 	char		klog_internal_count[KLOG_INTERNAL_COUNT_LENGTH];
 	char		klog_external_count[KLOG_EXTERNAL_COUNT_LENGTH];
+	char		sim_state[KLOG_SIM_STATE_LENGTH];
 	char		android_version[KLOG_ANDROID_VERSION_LENGTH];
 	char		modem_version[KLOG_MODEM_VERSION_LENGTH];
 	char		flex_version[KLOG_FLEX_VERSION_LENGTH];
@@ -448,6 +453,11 @@ int get_fault_state(void);
 void set_fault_state(int level, int type, const char* msg);
 void set_kernel_log_level(int level);
 void record_shutdown_time(int state);
+struct timespec klog_get_kernel_clock_timestamp(void);
+#ifdef CCI_KLOG_ALLOW_FORCE_PANIC
+int get_force_panic_when_suspend(void);
+int get_force_panic_when_power_off(void);
+#endif // #ifdef CCI_KLOG_ALLOW_FORCE_PANIC
 
 #else // #ifdef CONFIG_CCI_KLOG
 

@@ -272,6 +272,10 @@ static unsigned long warmboot = 0;
 static unsigned long startup = 0;
 static int crashflag_inited = 0;
 static int unknownrebootflag_inited = 0;
+#ifdef CCI_KLOG_ALLOW_FORCE_PANIC
+static int force_panic_when_suspend = 0;
+static int force_panic_when_power_off = 0;
+#endif // #ifdef CCI_KLOG_ALLOW_FORCE_PANIC
 
 /*******************************************************************************
 * Local Function Declaration
@@ -286,6 +290,18 @@ static int unknownrebootflag_inited = 0;
 *******************************************************************************/
 
 /*** Functions ***/
+
+#ifdef CCI_KLOG_ALLOW_FORCE_PANIC
+int get_force_panic_when_suspend(void)
+{
+	return force_panic_when_suspend;
+}
+
+int get_force_panic_when_power_off(void)
+{
+	return force_panic_when_power_off;
+}
+#endif // #ifdef CCI_KLOG_ALLOW_FORCE_PANIC
 
 #if CCI_KLOG_CRASH_SIZE
 //level: 0x10:enable/disable, 0x01: panic, 0x02: die, 0x03: data abort, 0x04: prefetch abort, 0x05: subsystem fatal error
@@ -1285,6 +1301,13 @@ static long klog_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 //save bootup info
 						sysinfo.android_bootup_time = (unsigned int)(system_bootup_time.clock.tv_sec * 1000 + system_bootup_time.clock.tv_nsec / 1000000);//ms
 						break;
+
+					case 2://klogcat sysinfo
+//update sysinfo
+						strncpy(sysinfo.modem_version, si.modem_version, KLOG_MODEM_VERSION_LENGTH - 1);
+						strncpy(sysinfo.scaling_max_freq, si.scaling_max_freq, KLOG_SCALING_MAX_FREQ_LENGTH - 1);
+						strncpy(sysinfo.sim_state, si.sim_state, KLOG_SIM_STATE_LENGTH - 1);
+						break;
 				}
 			}
 			else//power-off
@@ -1292,7 +1315,7 @@ static long klog_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				record_shutdown_time(si.system_on_off_state);
 			}
 
-//record sysinfo
+//record sysinfo to header
 			if((crash_state & 0x02) > 0)//not allow to overwrite if previous crash
 			{
 				kprintk("sysinfo:not allow to record sysinfo\n");
@@ -1313,6 +1336,22 @@ static long klog_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		case KLOG_IOCTL_FORCE_CRASH:
 			*((int*)0) = 0;
+			break;
+
+		case KLOG_IOCTL_SET_PANIC_WHEN_SUSPEND:
+			if(copy_from_user(&flag, (void __user *)arg, sizeof(int)))
+			{
+				return -EFAULT;
+			}
+			force_panic_when_suspend = flag;
+			break;
+
+		case KLOG_IOCTL_SET_PANIC_WHEN_POWER_OFF:
+			if(copy_from_user(&flag, (void __user *)arg, sizeof(int)))
+			{
+				return -EFAULT;
+			}
+			force_panic_when_power_off = flag;
 			break;
 #endif // #ifdef CCI_KLOG_ALLOW_FORCE_PANIC
 

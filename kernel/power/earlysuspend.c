@@ -90,19 +90,7 @@ extern struct timespec resume_timestamp;
 extern int suspend_resume_state;
 
 extern void record_suspend_resume_time(int state, unsigned int time);
-struct timespec get_kernel_clock_timestamp(void)
-{
-	struct timespec current_time;
-	unsigned long long now_clock;
-	unsigned long now_clock_ns;
-
-	now_clock = cpu_clock(UINT_MAX);
-	now_clock_ns = do_div(now_clock, 1000000000);
-	current_time.tv_sec = (time_t)now_clock;
-	current_time.tv_nsec = (long)now_clock_ns;
-
-	return current_time;
-}
+extern struct timespec klog_get_kernel_clock_timestamp(void);
 #endif // #ifdef CONFIG_CCI_KLOG
 
 
@@ -131,7 +119,7 @@ static void early_suspend(struct work_struct *work)
 #ifdef CONFIG_CCI_KLOG
 	if(suspend_resume_state == 0)
 	{
-		suspend_timestamp = get_kernel_clock_timestamp();
+		suspend_timestamp = klog_get_kernel_clock_timestamp();
 #ifdef CCI_KLOG_DETAIL_LOG
 		kprintk("suspend_resume_state(%d):suspend_timestamp=%u.%u\n", suspend_resume_state, (unsigned int)suspend_timestamp.tv_sec, (unsigned int)suspend_timestamp.tv_nsec);
 #endif // #ifdef CCI_KLOG_DETAIL_LOG
@@ -208,7 +196,7 @@ static void late_resume(struct work_struct *work)
 #ifdef CONFIG_CCI_KLOG
 	if(suspend_resume_state == 3)
 	{
-		current_timestamp = get_kernel_clock_timestamp();
+		current_timestamp = klog_get_kernel_clock_timestamp();
 #ifdef CCI_KLOG_DETAIL_LOG
 		kprintk("suspend_resume_state(%d):resume_timestamp=%u.%u\n", suspend_resume_state, (unsigned int)current_timestamp.tv_sec, (unsigned int)current_timestamp.tv_nsec);
 #endif // #ifdef CCI_KLOG_DETAIL_LOG

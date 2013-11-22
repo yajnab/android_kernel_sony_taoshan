@@ -24,6 +24,7 @@
 #include <linux/init.h>
 #include <linux/nmi.h>
 #include <linux/dmi.h>
+#include <linux/coresight.h>
 
 #include <mach/subsystem_restart.h>
 #include <mach/msm_iomap.h>
@@ -109,14 +110,14 @@ void panic(const char *fmt, ...)
 	*unknowflag = 0;
 	*backupcrashflag = 0;
 #endif	
-
 		set_warmboot();
 #ifdef CCI_KLOG_ALLOW_FORCE_PANIC			
 		__raw_writel(CONFIG_WARMBOOT_CRASH, restart_reason);
 #else
 	__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
 	*backupcrashflag = CONFIG_WARMBOOT_CRASH;
-#endif			
+#endif	
+	coresight_abort();
 	/*
 	 * Disable local interrupts. This will prevent panic_smp_self_stop
 	 * from deadlocking the first cpu that invokes the panic, since
@@ -147,6 +148,10 @@ void panic(const char *fmt, ...)
 	va_start(args, fmt);
 	vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	set_kernel_crash_magic_number();
+	set_crash_store_enable();
+#endif
 
 #ifdef CCI_KLOG_CRASH_SIZE
 #if CCI_KLOG_CRASH_SIZE
@@ -180,6 +185,9 @@ void panic(const char *fmt, ...)
 	}
 #endif // #ifdef CONFIG_CCI_KLOG
 
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	set_crash_store_disable();
+#endif
 #ifdef CONFIG_DEBUG_BUGVERBOSE
 	/*
 	 * Avoid nested stack-dumping if a panic occurs during oops processing
@@ -586,7 +594,7 @@ void __stack_chk_fail(void)
 
 #define SUPPORT_T32_DEBUG
 #ifdef SUPPORT_T32_DEBUG
-	printk("stack-protector: Kernel stack is corrupted in: %p\n",
+	printk(KERN_CRIT "stack-protector: Kernel stack is corrupted in: %p\n",
 		__builtin_return_address(0));
 	BUG_ON(1);
 #else // #ifdef SUPPORT_T32_DEBUG

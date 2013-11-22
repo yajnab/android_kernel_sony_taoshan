@@ -100,19 +100,20 @@ int load_565rle_image(char *filename, bool bf_supported)
 		       __func__, __LINE__, info->node);
 		goto err_logo_free_data;
 	}
-	bits = (unsigned int *)(info->screen_base); //Taylor--20121018
-	//bits = (unsigned short *)(info->screen_base);
-	while (count > 3) {
-		unsigned n = ptr[0];
-		if (n > max)
-			break;
-		memset16(bits, ptr[1], n << 1);
-		bits += n;
-		max -= n;
-		ptr += 2;
-		count -= 4;
+	if (info->screen_base) {
+		//bits = (unsigned short *)(info->screen_base);
+		bits = (unsigned int *)(info->screen_base); //Taylor--20121018
+		while (count > 3) {
+			unsigned n = ptr[0];
+			if (n > max)
+				break;
+			memset16(bits, ptr[1], n << 1);
+			bits += n;
+			max -= n;
+			ptr += 2;
+			count -= 4;
+		}
 	}
-	mdelay(50); //Taylor--20121018
 
 err_logo_free_data:
 	kfree(data);

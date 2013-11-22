@@ -9,7 +9,7 @@
  *
  * Copyright (C) 2009-2012 Cypress Semiconductor, Inc.
  * Copyright (C) 2010-2011 Motorola Mobility, Inc.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * version 2, and only version 2, as published by the

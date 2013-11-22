@@ -98,7 +98,7 @@ struct led_classdev {
 	enum led_op_offms (*offms_get)(struct led_classdev *led_cdev);
 	enum led_tunebrightness (*tunebrightness_get)(struct led_classdev *led_cdev);
 	enum led_batpa (*batpa_get)(struct led_classdev *led_cdev);
-	
+
 	/*
 	 * Activate hardware accelerated blink, delays are in milliseconds
 	 * and if both are zero then a sensible default should be chosen.

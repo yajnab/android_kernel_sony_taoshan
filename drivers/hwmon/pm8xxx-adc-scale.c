@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
  * only version 2 as published by the Free Software Foundation.
@@ -15,17 +15,14 @@
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/mfd/pm8xxx/pm8xxx-adc.h>
-
-#if defined(ORG_VER)
+#if defined(ORG_VER)//S:YF
 #else
 #include <linux/fs.h>
 #include <linux/uaccess.h>
-#endif
-
+#endif//E:YF
 #define KELVINMIL_DEGMIL	273160
 
-
-#if defined(ORG_VER)
+#if defined(ORG_VER)//S:YF
 #else
 #define CONFIG_PM8038_CHG_DEBUG 0
 #if(CONFIG_PM8038_CHG_DEBUG)
@@ -41,8 +38,7 @@
 #else
     #define PrintLog_INFO(fmt, args...)
 #endif
-#endif
-
+#endif//E:YF
 
 /* Units for temperature below (on x axis) is in 0.1DegC as
    required by the battery driver. Note the resolution used
@@ -140,42 +136,42 @@ static const struct pm8xxx_adc_map_pt adcmap_btm_threshold[] = {
 };
 #else
 static struct pm8xxx_adc_map_pt adcmap_btm_threshold[] = {
-	{-200,   1332},
-	{0,    1216},
-	{50,    1171},
-	{100,    1125},
-	{150,   1075},
-	{200,   1022},
-	{250,   964},
-	{300,   912},
-	{350,   863},
-	{400,   812},
-	{450,   766},
-	{500,   725},
-	{550,   688},
-	{600,   656},
-	{650,   622},
-	{700,   600},
-	{1000,   505}
+	{-200,   1327},
+	{0,    1210},
+	{50,    1167},
+	{100,    1119},
+	{150,   1068},
+	{200,   1015},
+	{250,   960},
+	{300,   906},
+	{350,   855},
+	{400,   805},
+	{450,   777},
+	{500,   717},
+	{550,   681},
+	{600,   648},
+	{650,   616},
+	{700,   593},
+	{1000,   499}
 };
 static struct pm8xxx_adc_map_pt adcmap_btm_range[] = { 
-	{1280,   1360},	//-20degC
-	{1165,    1245},	//0degC
-	{1120,    1210},	//5degC
-	{1070,    1165},	//10degC
-	{1015,   1115},	//15degC
-	{965,   1065},	//20degC
-	{910,   1010},	//25degC
-	{860,   955},		//30degC
-	{810,   905},		//35degC
-	{760,   855},		//40degC
-	{720,   805},		//45degC
-	{680,   760},		//50degC
-	{640,   720},		//55degC
-	{615,   685},		//60degC
-	{590,   655},		//65degC
-	{560,   630},		//70degC
-	{470,   530}		//100degC
+        {1326, 1328},	//-20degC
+        {1208, 1211},	//0degC
+        {1165, 1168},	//5degC
+        {1117, 1121},	//10degC
+        {1066, 1070},	//15degC
+        {1012, 1017},	//20degC
+        {957, 962},		//25degC
+        {904, 908},		//30degC
+        {853, 857},		//35degC
+        {803, 807},		//40degC
+        {775, 779},		//45degC
+        {716, 719},		//50degC
+        {680, 682},		//55degC
+        {647, 649},		//60degC
+        {616, 618},		//65degC
+        {593, 594},		//70degC
+        {498, 500}		//100degC
 };
 #endif 
 
@@ -679,8 +675,7 @@ static int64_t pm8xxx_adc_scale_ratiometric_calib(int32_t adc_code,
 	return adc_voltage;
 }
 
-
-#if defined(ORG_VER)
+#if defined(ORG_VER)//S:YF
 #else
 #define  NV_calibrated_btm_count 10
 bool btm_calibrate(const char *buf, size_t count)
@@ -773,8 +768,7 @@ bool btm_calibrate(const char *buf, size_t count)
 
 	return true;
 }
-#endif
-
+#endif//E:YF
 
 int32_t pm8xxx_adc_scale_batt_therm(int32_t adc_code,
 		const struct pm8xxx_adc_properties *adc_properties,
@@ -785,13 +779,6 @@ int32_t pm8xxx_adc_scale_batt_therm(int32_t adc_code,
 
 	bat_voltage = pm8xxx_adc_scale_ratiometric_calib(adc_code,
 			adc_properties, chan_properties);
-
-
-#if defined(ORG_VER)
-#else
-	adc_chan_result->measurement = bat_voltage;
-#endif
-
 
 	return pm8xxx_adc_map_batt_therm(
 			adcmap_btm_threshold,

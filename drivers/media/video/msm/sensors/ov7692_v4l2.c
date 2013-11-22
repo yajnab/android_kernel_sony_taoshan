@@ -1,5 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,6 +15,26 @@
 #include "msm_camera_i2c_mux.h"//2012/08/27
 #include "msm.h"//2013/01/28
 #define SENSOR_NAME "ov7692"
+
+#define CAMERA_EFFECT_OFF		0
+#define CAMERA_EFFECT_MONO		1
+#define CAMERA_EFFECT_NEGATIVE		2
+#define CAMERA_EFFECT_SOLARIZE		3
+#define CAMERA_EFFECT_SEPIA		4
+#define CAMERA_EFFECT_POSTERIZE         5
+#define CAMERA_EFFECT_WHITEBOARD	6
+#define CAMERA_EFFECT_BLACKBOARD	7
+#define CAMERA_EFFECT_AQUA		8
+#define CAMERA_EFFECT_EMBOSS		9
+#define CAMERA_EFFECT_SKETCH		10
+#define CAMERA_EFFECT_NEON		11
+#define CAMERA_EFFECT_USER_DEFINED1     12
+#define CAMERA_EFFECT_USER_DEFINED2     13
+#define CAMERA_EFFECT_USER_DEFINED3     14
+#define CAMERA_EFFECT_USER_DEFINED4     15
+#define CAMERA_EFFECT_USER_DEFINED5     16
+#define CAMERA_EFFECT_USER_DEFINED6     17
+#define CAMERA_EFFECT_MAX               18
 
 DEFINE_MUTEX(ov7692_mut);
 //B 2012/11/15 
@@ -41,7 +60,7 @@ static struct msm_camera_i2c_reg_conf ov7692_start_settings[] = {
 };
 
 static struct msm_camera_i2c_reg_conf ov7692_stop_settings[] = {
-    {0x0e, 0x08},
+	{0x0e, 0x08},
     //B 2012/09/21
     {0xff, 0x01},
     {0xb5, 0x70},
@@ -174,25 +193,25 @@ static struct msm_camera_i2c_reg_conf ov7692_recommend_settings[] = {
     //E 2013/03/07
     //B 2013/03/14
     {0x8c, 0x5e},
-    {0x8d, 0x11},
-    {0x8e, 0x12},
-    {0x8f, 0x19},
-    {0x90, 0x50},
-    {0x91, 0x20},
+	{0x8d, 0x11},
+	{0x8e, 0x12},
+	{0x8f, 0x19},
+	{0x90, 0x50},
+	{0x91, 0x20},
     {0x92, 0x8e},
     {0x93, 0x82},
     {0x94, 0x1b},
     {0x95, 0x1c},
-    {0x96, 0xff},
-    {0x97, 0x00},
+	{0x96, 0xff},
+	{0x97, 0x00},
     {0x98, 0x30},
     {0x99, 0x10},
     {0x9a, 0x48},
     {0x9b, 0x3e},
-    {0x9c, 0xf0},
-    {0x9d, 0xf0},
-    {0x9e, 0xf0},
-    {0x9f, 0xff},
+	{0x9c, 0xf0},
+	{0x9d, 0xf0},
+	{0x9e, 0xf0},
+	{0x9f, 0xff},
     {0xa0, 0x65},
     {0xa1, 0x5c},
     {0xa2, 0x1c},
@@ -925,9 +944,6 @@ struct msm_sensor_v4l2_ctrl_info_t ov7692_v4l2_ctrl_info[] = {
 
 };
 
-static struct msm_camera_csid_vc_cfg ov7692_cid_cfg[] = {
-	{0, CSI_YUV422_8, CSI_DECODE_8BIT},
-};
 /*
 static struct msm_camera_csi_params ov7692_csi_params = {
 	.data_format = CSI_8BIT,
@@ -937,23 +953,6 @@ static struct msm_camera_csi_params ov7692_csi_params = {
 	.settle_cnt  = 0x14,
 };
 */
-static struct msm_camera_csi2_params ov7692_csi_params = {	
-	.csid_params = {
-		.lane_cnt = 1,
-		.lut_params = {
-			.num_cid = 1,
-			.vc_cfg = ov7692_cid_cfg,
-		},
-	},
-	.csiphy_params = {
-		.lane_cnt = 1,
-		.settle_cnt = 0x14,
-	},
-};
-
-static struct msm_camera_csi2_params *ov7692_csi_params_array[] = {
-	&ov7692_csi_params,
-};
 
 static struct msm_sensor_output_reg_addr_t ov7692_reg_addr = {
 	.x_output = 0xCC,
@@ -1021,6 +1020,12 @@ int32_t ov7692_v4l2_power_up(struct msm_sensor_ctrl_t *s_ctrl)
     int32_t rc = 0;
     struct msm_camera_sensor_info *data = s_ctrl->sensordata;
     unsigned config = GPIO_CFG(MSM_OV_CAM_CLK, 2, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA);//2012/11/15 
+	struct device *dev = NULL;
+
+	if (s_ctrl->sensor_device_type == MSM_SENSOR_PLATFORM_DEVICE)
+		dev = &s_ctrl->pdev->dev;
+	else
+		dev = &s_ctrl->sensor_i2c_client->client->dev;
     
     pr_err("%s: %s\n", __func__, data->sensor_name);
     s_ctrl->reg_ptr = kzalloc(sizeof(struct regulator *)
@@ -1037,18 +1042,22 @@ int32_t ov7692_v4l2_power_up(struct msm_sensor_ctrl_t *s_ctrl)
     }
 
     if (!power) {
-        rc = msm_camera_config_vreg(&s_ctrl->sensor_i2c_client->client->dev,
+        rc = msm_camera_config_vreg(dev,
 	    	    s_ctrl->sensordata->sensor_platform_info->cam_vreg,
-		    s_ctrl->sensordata->sensor_platform_info->num_vreg,
-		    s_ctrl->reg_ptr, 1);
+		        s_ctrl->sensordata->sensor_platform_info->num_vreg,
+        	    s_ctrl->vreg_seq,
+		        s_ctrl->num_vreg_seq,
+		        s_ctrl->reg_ptr, 1);
 	if (rc < 0) {
 	    pr_err("%s: regulator on failed\n", __func__);
 	    goto config_vreg_failed;
 	}
 
-	rc = msm_camera_enable_vreg(&s_ctrl->sensor_i2c_client->client->dev,
+	rc = msm_camera_enable_vreg(dev,
 		    s_ctrl->sensordata->sensor_platform_info->cam_vreg,
 		    s_ctrl->sensordata->sensor_platform_info->num_vreg,
+            s_ctrl->vreg_seq,
+		    s_ctrl->num_vreg_seq,
 		    s_ctrl->reg_ptr, 1);
 	if (rc < 0) {
 	    pr_err("%s: enable regulator failed\n", __func__);
@@ -1070,8 +1079,8 @@ int32_t ov7692_v4l2_power_up(struct msm_sensor_ctrl_t *s_ctrl)
     if (s_ctrl->clk_rate != 0)
         ov_cam_clk_info->clk_rate = s_ctrl->clk_rate;
     gpio_tlmm_config(config, 0);//2012/11/15 
-    rc = msm_cam_clk_enable(&s_ctrl->sensor_i2c_client->client->dev,
-		ov_cam_clk_info, &s_ctrl->cam_clk, ARRAY_SIZE(ov_cam_clk_info), 1);
+    rc = msm_cam_clk_enable(dev,
+		ov_cam_clk_info, s_ctrl->cam_clk, ARRAY_SIZE(ov_cam_clk_info), 1);
     if (rc < 0) {
 	    pr_err("%s: clk enable failed\n", __func__);
 	    goto enable_clk_failed;
@@ -1086,20 +1095,39 @@ int32_t ov7692_v4l2_power_up(struct msm_sensor_ctrl_t *s_ctrl)
     if (data->sensor_platform_info->i2c_conf && data->sensor_platform_info->i2c_conf->use_i2c_mux)
 	    msm_sensor_enable_i2c_mux(data->sensor_platform_info->i2c_conf);
 
-    return rc;
+	if (s_ctrl->sensor_device_type == MSM_SENSOR_PLATFORM_DEVICE) {
+		rc = msm_sensor_cci_util(s_ctrl->sensor_i2c_client,
+			MSM_CCI_INIT);
+		if (rc < 0) {
+			pr_err("%s cci_init failed\n", __func__);
+			goto cci_init_failed;
+		}
+	}
+	s_ctrl->curr_res = MSM_SENSOR_INVALID_RES;
+	return rc;
+
+cci_init_failed:
+	if (data->sensor_platform_info->i2c_conf &&
+		data->sensor_platform_info->i2c_conf->use_i2c_mux)
+		msm_sensor_disable_i2c_mux(
+			data->sensor_platform_info->i2c_conf);
 
 enable_clk_failed:
     msm_camera_config_gpio_table(data, 0);
 config_gpio_failed:
-    msm_camera_enable_vreg(&s_ctrl->sensor_i2c_client->client->dev,
+    msm_camera_enable_vreg(dev,
 			s_ctrl->sensordata->sensor_platform_info->cam_vreg,
 			s_ctrl->sensordata->sensor_platform_info->num_vreg,
+            s_ctrl->vreg_seq,
+		    s_ctrl->num_vreg_seq,
 			s_ctrl->reg_ptr, 0);
 
 enable_vreg_failed:
-    msm_camera_config_vreg(&s_ctrl->sensor_i2c_client->client->dev,
+    msm_camera_config_vreg(dev,
 		s_ctrl->sensordata->sensor_platform_info->cam_vreg,
 		s_ctrl->sensordata->sensor_platform_info->num_vreg,
+        s_ctrl->vreg_seq,
+		s_ctrl->num_vreg_seq,
 		s_ctrl->reg_ptr, 0);
 config_vreg_failed:
     msm_camera_request_gpio_table(data, 0);
@@ -1111,6 +1139,15 @@ request_gpio_failed:
 int32_t ov7692_v4l2_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	struct msm_camera_sensor_info *data = s_ctrl->sensordata;
+	struct device *dev = NULL;
+	if (s_ctrl->sensor_device_type == MSM_SENSOR_PLATFORM_DEVICE)
+		dev = &s_ctrl->pdev->dev;
+	else
+		dev = &s_ctrl->sensor_i2c_client->client->dev;
+	if (s_ctrl->sensor_device_type == MSM_SENSOR_PLATFORM_DEVICE) {
+		msm_sensor_cci_util(s_ctrl->sensor_i2c_client,
+			MSM_CCI_RELEASE);
+	}
 	CDBG("%s\n", __func__);
 	if (data->sensor_platform_info->i2c_conf &&
 		data->sensor_platform_info->i2c_conf->use_i2c_mux)
@@ -1119,8 +1156,8 @@ int32_t ov7692_v4l2_power_down(struct msm_sensor_ctrl_t *s_ctrl)
     
 	if (data->sensor_platform_info->ext_power_ctrl != NULL)
 		data->sensor_platform_info->ext_power_ctrl(0);
-	msm_cam_clk_enable(&s_ctrl->sensor_i2c_client->client->dev,
-		ov_cam_clk_info, &s_ctrl->cam_clk, ARRAY_SIZE(ov_cam_clk_info), 0);
+	msm_cam_clk_enable(dev,
+		ov_cam_clk_info, s_ctrl->cam_clk, ARRAY_SIZE(ov_cam_clk_info), 0);
 	msm_camera_config_gpio_table(data, 0);
         /*
 	msm_camera_enable_vreg(&s_ctrl->sensor_i2c_client->client->dev,
@@ -1134,6 +1171,7 @@ int32_t ov7692_v4l2_power_down(struct msm_sensor_ctrl_t *s_ctrl)
         */
 	msm_camera_request_gpio_table(data, 0);
 	kfree(s_ctrl->reg_ptr);
+	s_ctrl->curr_res = MSM_SENSOR_INVALID_RES;
 	return 0;
 }
 //E 2012/08/27
@@ -1162,7 +1200,7 @@ int32_t ov7692_write_res_settings(struct msm_sensor_ctrl_t *s_ctrl,
 		return rc;
     
 	if (s_ctrl->func_tbl->sensor_adjust_frame_lines)
-		rc = s_ctrl->func_tbl->sensor_adjust_frame_lines(s_ctrl, res);
+		s_ctrl->func_tbl->sensor_adjust_frame_lines(s_ctrl);
 
 	return rc;
 }
@@ -1172,7 +1210,8 @@ int32_t ov7692_set_fps(struct msm_sensor_ctrl_t *s_ctrl,
 {
     int new_fps = 0;//2013/01/28
     
-	s_ctrl->fps_divider = fps->fps_div;
+	//s_ctrl->fps_divider = fps->fps_div; //2013/06/28, frame_length_lines affected by this value
+    s_ctrl->fps_divider = fps->fps_div;//2013/07/03
     //B 2013/01/28
     new_fps = s_ctrl->msm_sensor_reg->output_settings->vt_pixel_clk
                   / s_ctrl->msm_sensor_reg->output_settings->frame_length_lines
@@ -1197,44 +1236,21 @@ int32_t ov7692_setting(struct msm_sensor_ctrl_t *s_ctrl,
 			int update_type, int res)
 {
 	int32_t rc = 0;
-
-	s_ctrl->func_tbl->sensor_stop_stream(s_ctrl);
-	msleep(30);
-	if (update_type == MSM_SENSOR_REG_INIT) {        
-		s_ctrl->curr_csi_params = NULL;
-		msm_sensor_enable_debugfs(s_ctrl);
-		msm_sensor_write_init_settings(s_ctrl);        
-	} else if (update_type == MSM_SENSOR_UPDATE_PERIODIC) {	    
+	if (update_type == MSM_SENSOR_REG_INIT) {
+		s_ctrl->func_tbl->sensor_stop_stream(s_ctrl);
+		msm_sensor_write_init_settings(s_ctrl);
+	} else if (update_type == MSM_SENSOR_UPDATE_PERIODIC) {
         if (req_fps == 15)
             res = 1;
 		ov7692_write_res_settings(s_ctrl, res);
         res = 0;
-		if (s_ctrl->curr_csi_params != s_ctrl->csi_params[res]) {
-			s_ctrl->curr_csi_params = s_ctrl->csi_params[res];
-			s_ctrl->curr_csi_params->csid_params.lane_assign =
-				s_ctrl->sensordata->sensor_platform_info->
-				csi_lane_params->csi_lane_assign;
-			s_ctrl->curr_csi_params->csiphy_params.lane_mask =
-				s_ctrl->sensordata->sensor_platform_info->
-				csi_lane_params->csi_lane_mask;
-			v4l2_subdev_notify(&s_ctrl->sensor_v4l2_subdev,
-				NOTIFY_CSID_CFG,
-				&s_ctrl->curr_csi_params->csid_params);
-			mb();
-			v4l2_subdev_notify(&s_ctrl->sensor_v4l2_subdev,
-				NOTIFY_CSIPHY_CFG,
-				&s_ctrl->curr_csi_params->csiphy_params);
-			mb();
-			msleep(20);
-		}
 
 		v4l2_subdev_notify(&s_ctrl->sensor_v4l2_subdev,
 			NOTIFY_PCLK_CHANGE, &s_ctrl->msm_sensor_reg->
 			output_settings[res].op_pixel_clk);
-		s_ctrl->func_tbl->sensor_start_stream(s_ctrl);
         //B 2013/03/07
-		msleep(600);
-        pr_err("%s: delay 600ms to skip frames\n", __func__);
+		//msleep(600);
+        //pr_err("%s: delay 600ms to skip frames\n", __func__);
         //E 2013/03/07
 	}
 	return rc;
@@ -1259,7 +1275,7 @@ static struct msm_sensor_fn_t ov7692_func_tbl = {
 	.sensor_power_up = ov7692_v4l2_power_up,
 	.sensor_power_down = ov7692_v4l2_power_down,
         //E 2012/08/27
-	.sensor_adjust_frame_lines = msm_sensor_adjust_frame_lines,
+	.sensor_adjust_frame_lines = msm_sensor_adjust_frame_lines1,
 	.sensor_get_csi_params = msm_sensor_get_csi_params,
 };
 
@@ -1287,7 +1303,6 @@ static struct msm_sensor_ctrl_t ov7692_s_ctrl = {
 	.sensor_output_reg_addr = &ov7692_reg_addr,
 	.sensor_id_info = &ov7692_id_info,
 	.cam_mode = MSM_SENSOR_MODE_INVALID,
-	.csi_params = &ov7692_csi_params_array[0],
 	.msm_sensor_mutex = &ov7692_mut,
 	.sensor_i2c_driver = &ov7692_i2c_driver,
 	.sensor_v4l2_subdev_info = ov7692_subdev_info,

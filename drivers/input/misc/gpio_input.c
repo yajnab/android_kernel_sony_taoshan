@@ -1,7 +1,7 @@
 /* drivers/input/misc/gpio_input.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+ *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -61,9 +61,8 @@ struct switch_dev sim_det_sw_dev;
 struct workqueue_struct *g_sim_det_Wq;
 struct work_struct g_sim_det_work;
 int g_i_sim;
-static int board_type=DVT2_BOARD_HW_ID;
+//static int board_type=DVT2_BOARD_HW_ID;
 //E:LO
-
 
 static enum hrtimer_restart gpio_event_input_timer_func(struct hrtimer *timer)
 {
@@ -146,21 +145,25 @@ static enum hrtimer_restart gpio_event_input_timer_func(struct hrtimer *timer)
 			pr_info("gpio_keys_scan_keys: key %x-%x, %d (%d) "
 				"changed to %d\n", ds->info->type,
 				key_entry->code, i, key_entry->gpio, pressed);
-		printk("gpio_keys_scan_keys: key %x-%x, %d (%d) "
-				"changed to %d\n", ds->info->type,
-				key_entry->code, i, key_entry->gpio, pressed);
-		//S:LO
-		if( key_entry->gpio != 33 )
-		{
+//S:LO
+#ifdef ORG_VER
 		input_event(ds->input_devs->dev[key_entry->dev], ds->info->type,
 			    key_entry->code, pressed);
+#else
+                printk("gpio_keys_scan_keys: key %x-%x, %d (%d) "
+				"changed to %d\n", ds->info->type,
+				key_entry->code, i, key_entry->gpio, pressed);
+                if( key_entry->gpio != 33 ) {
+			input_event(ds->input_devs->dev[key_entry->dev], ds->info->type,
+			    	key_entry->code, pressed);
 		} else {
         		g_i_sim = pressed;
 			printk("%s - call queue_work()\n", __FUNCTION__);
 			wake_lock_timeout(&ds->sim_det_wake_lock, HZ*3);
 			queue_work(g_sim_det_Wq, &g_sim_det_work);    //pm8921_sim_det_worker
 		}
-		//E:LO
+#endif
+//E:LO
 		sync_needed = true;
 	}
 	if (sync_needed) {
@@ -249,6 +252,8 @@ static int gpio_event_input_request_irqs(struct gpio_input_state *ds)
 		err = irq = gpio_to_irq(ds->info->keymap[i].gpio);
 		if (err < 0)
 			goto err_gpio_get_irq_num_failed;
+//S:LO
+#ifdef ORG_VER
 		err = request_irq(irq, gpio_event_input_irq_handler,
 				  req_flags, "gpio_keys", &ds->key_state[i]);
 		if (err) {
@@ -257,6 +262,28 @@ static int gpio_event_input_request_irqs(struct gpio_input_state *ds)
 				ds->info->keymap[i].gpio, irq);
 			goto err_request_irq_failed;
 		}
+#else
+		if ( ds->info->keymap[i].gpio == 33 ) {
+			err = request_irq(irq, gpio_event_input_irq_handler,
+				  req_flags, "sim_det_gpio_irq", &ds->key_state[i]);
+			if (err) {
+				pr_err("sim_det_gpio_event_input_request_irqs: request_irq "
+					"failed for input %d, irq %d\n",
+					ds->info->keymap[i].gpio, irq);
+				goto err_request_irq_failed;
+			}
+		} else {
+			err = request_irq(irq, gpio_event_input_irq_handler,
+				  req_flags, "gpio_keys", &ds->key_state[i]);
+			if (err) {
+				pr_err("gpio_event_input_request_irqs: request_irq "
+					"failed for input %d, irq %d\n",
+					ds->info->keymap[i].gpio, irq);
+				goto err_request_irq_failed;
+			}
+		}
+#endif
+//E:LO
 		if (ds->info->info.no_suspend) {
 			err = enable_irq_wake(irq);
 			if (err) {
@@ -288,17 +315,9 @@ static ssize_t pm8921_sim_det_print_name(struct switch_dev *sdev, char *buf)
 {	
 	switch (switch_get_state(sdev)) {
 	case 0:
-		if ( board_type > DVT1_1_BOARD_HW_ID ) {
 		return sprintf(buf, g_i_sim?"inserted\n":"removed\n");
-		} else {
-			return sprintf(buf, "removed\n");
-		}
 	case 1:
-		if ( board_type > DVT1_1_BOARD_HW_ID ) {
-			return sprintf(buf, g_i_sim?"inserted\n":"removed\n");
-		} else {
-			return sprintf(buf, "removed\n");
-		}
+		return sprintf(buf, g_i_sim?"inserted\n":"removed\n");
 	}
 	return -EINVAL;
 }
@@ -320,7 +339,7 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 	struct gpio_input_state *ds = *data;
 
 	//S:LO
-	board_type = board_type_with_hw_id();
+	//board_type = board_type_with_hw_id();
 	sim_det_sw_dev.name = "pm8921_sim_det";
         sim_det_sw_dev.print_name = pm8921_sim_det_print_name;
     
@@ -387,12 +406,32 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 		}
 
 		for (i = 0; i < di->keymap_size; i++) {
+//S:LO
+#ifdef ORG_VER
 			ret = gpio_request(di->keymap[i].gpio, "gpio_kp_in");
 			if (ret) {
 				pr_err("gpio_event_input_func: gpio_request "
 					"failed for %d\n", di->keymap[i].gpio);
 				goto err_gpio_request_failed;
 			}
+#else
+			if ( di->keymap[i].gpio == 33 ) {
+				ret = gpio_request(di->keymap[i].gpio, "sim_det_gpio_input");
+				if (ret) {
+					pr_err("sim_det_gpio_event_input_func: gpio_request "
+						"failed for %d\n", di->keymap[i].gpio);
+					goto err_gpio_request_failed;
+				}
+			} else {
+			        ret = gpio_request(di->keymap[i].gpio, "gpio_kp_in");
+			        if (ret) {
+				        pr_err("gpio_event_input_func: gpio_request "
+					        "failed for %d\n", di->keymap[i].gpio);
+				        goto err_gpio_request_failed;
+			        }
+			}
+#endif
+//E:LO
 			ret = gpio_direction_input(di->keymap[i].gpio);
 			if (ret) {
 				pr_err("gpio_event_input_func: "

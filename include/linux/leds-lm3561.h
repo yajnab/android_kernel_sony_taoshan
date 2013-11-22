@@ -4,6 +4,7 @@
 #ifndef __LEDS_LM3561_H__
 #define __LEDS_LM3561_H__
 #include <linux/leds.h>
+#include <linux/i2c.h>
 //B 2012/08/06
 int led_i2c_write(struct i2c_client *client, u8 cReg, u8 data);
 u8 led_i2c_read(struct i2c_client *client, u8 cReg);

@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/smd_rpcrouter.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2007-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2007-2011, The Linux Foundation. All rights reserved.
  * Author: San Mehat <san@android.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -1561,14 +1561,14 @@ int msm_rpc_write(struct msm_rpc_endpoint *ept, void *buffer, int count)
 	}
 
 	if (rq->type == 0) {
-//[DA80] ===> BugID#xxx : SMD RPC log, added by Jimmy@CCI
+
 #ifdef CONFIG_CCI_PM_SMD_SEND_RPC_CALL_LOG
 	if(get_suspend_state() == PM_SUSPEND_MEM)
 	{
 		printk("[SMD]send RPC call:xid=%u, prog=0x%X, proc=0x%X\n", cpu_to_be32(rq->xid), cpu_to_be32(rq->prog), cpu_to_be32(rq->procedure));
 	}
 #endif // #ifdef CONFIG_CCI_PM_SMD_SEND_RPC_CALL_LOG
-//[DA80] ===> BugID#xxx : SMD RPC log, added by Jimmy@CCI
+
 		/* RPC CALL */
 		if (count < (sizeof(uint32_t) * 6)) {
 			printk(KERN_ERR
@@ -1596,14 +1596,14 @@ int msm_rpc_write(struct msm_rpc_endpoint *ept, void *buffer, int count)
 		   be32_to_cpu(rq->prog), be32_to_cpu(rq->vers),
 		   ept->dst_pid, ept->dst_cid, count);
 	} else {
-//[DA80] ===> BugID#xxx : SMD RPC log, added by Jimmy@CCI
+
 #ifdef CONFIG_CCI_PM_SMD_SEND_RPC_REPLY_LOG
 	if(get_suspend_state() == PM_SUSPEND_MEM)
 	{
 		printk("[SMD]send RPC reply:xid=%u\n", cpu_to_be32(rq->xid));
 	}
 #endif // #ifdef CONFIG_CCI_PM_SMD_SEND_RPC_REPLY_LOG
-//[DA80] ===> BugID#xxx : SMD RPC log, added by Jimmy@CCI
+
 		/* RPC REPLY */
 		reply = get_pend_reply(ept, rq->xid);
 		if (!reply) {
@@ -1899,14 +1899,14 @@ int __msm_rpc_read(struct msm_rpc_endpoint *ept,
 	*frag_ret = pkt->first;
 	rq = (void*) pkt->first->data;
 	if ((rc >= (sizeof(uint32_t) * 3)) && (rq->type == 0)) {
-//[DA80] ===> BugID#xxx : SMD RPC log, added by Jimmy@CCI
+
 #ifdef CONFIG_CCI_PM_SMD_RECEIVE_RPC_CALL_LOG
 	if(get_suspend_state() == PM_SUSPEND_MEM)
 	{
 		printk("[SMD]receive RPC call:xid=%u, prog=0x%X, proc=0x%X\n", cpu_to_be32(rq->xid), cpu_to_be32(rq->prog), cpu_to_be32(rq->procedure));
 	}
 #endif // #ifdef CONFIG_CCI_PM_SMD_RECEIVE_RPC_CALL_LOG
-//[DA80] ===> BugID#xxx : SMD RPC log, added by Jimmy@CCI
+
 		/* RPC CALL */
 		reply = get_avail_reply(ept);
 		if (!reply) {
@@ -1920,7 +1920,7 @@ int __msm_rpc_read(struct msm_rpc_endpoint *ept,
 		reply->vers = rq->vers;
 		set_pend_reply(ept, reply);
 	}
-//[DA80] ===> BugID#xxx : SMD RPC log, added by Jimmy@CCI
+
 #ifdef CONFIG_CCI_PM_SMD_RECEIVE_RPC_REPLY_LOG
 	else if(rc >= (sizeof(uint32_t) * 3))
 	if(get_suspend_state() == PM_SUSPEND_MEM)
@@ -1928,7 +1928,7 @@ int __msm_rpc_read(struct msm_rpc_endpoint *ept,
 		printk("[SMD]receive RPC reply:xid=%u\n", cpu_to_be32(rq->xid));
 	}
 #endif // #ifdef CONFIG_CCI_PM_SMD_RECEIVE_RPC_REPLY_LOG
-//[DA80] ===> BugID#xxx : SMD RPC log, added by Jimmy@CCI
+
 
 	kfree(pkt);
 

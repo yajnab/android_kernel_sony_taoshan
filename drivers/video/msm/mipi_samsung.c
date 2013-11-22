@@ -194,8 +194,8 @@ static struct dsi_cmd_desc samsung_display_off_cmds[] = {
 	{DTYPE_DCS_WRITE, 1, 0, 0, 0,
 		sizeof(enter_sleep), enter_sleep},
 };
+
 struct dcs_cmd_req cmdreq;
-extern int cci_fb_UpdateDone;//Taylor--20121105
 DEFINE_LED_TRIGGER(bkl_led_trigger);
 
 //static char manufacture_id[2] = {0x04, 0x00}; /* DTYPE_DCS_READ */
@@ -286,19 +286,11 @@ static int mipi_samsung_lcd_off(struct platform_device *pdev)
 		led_trigger_event(bkl_led_trigger, 0);
 	}
 
-	cci_fb_UpdateDone=0; //Taylor--20121105
-
 	return 0;
 }
 
 static void mipi_samsung_set_backlight(struct msm_fb_data_type *mfd)
 {
-	if (!cci_fb_UpdateDone){
-		printk("Taylor: No BL before LCM on\n");
-		return;
-	}
-	
-	pr_debug("Taylor: %s : Set BL:%d\n",__func__, mfd->bl_level);
 	if ((mipi_samsung_pdata->enable_wled_bl_ctrl)
 	    && (wled_trigger_initialized)) {
 		led_trigger_event(bkl_led_trigger, mfd->bl_level);

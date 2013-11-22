@@ -201,9 +201,6 @@ struct tsl2772_chip {
 
 static struct tsl2772_chip *chip;
 
-
-
-
 #define golden_ga 3750
 
 			

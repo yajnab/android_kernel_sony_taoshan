@@ -3,7 +3,7 @@
  *
  * Copyright 2005 Phil Blundell
  * Copyright 2010, 2011 David Jander <david@protonic.nl>
- * Copyright (C) 2012 Sony Mobile Communications AB.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -69,16 +69,10 @@ struct gpio_keys_drvdata {
 	struct gpio_button_data data[0];
 };
 
- 
-#define GPIO_CAMERA_SNAPSHOT    68
-#define GPIO_CAMERA_FOCUS    69
- 
- 
-#define GPIO_CAMERA_SNAPSHOT1	69
-#define GPIO_CAMERA_FOCUS1	68
-//#define GPIO_CAMERA_CTRL 53
 bool camera_ctrl;
- 
+int mkey_init = 0;
+int diff = 0;
+
 
 /*
  * SYSFS interface for enabling/disabling keys and switches:
@@ -199,20 +193,8 @@ static ssize_t gpio_keys_attr_show_helper(struct gpio_keys_drvdata *ddata,
 	bits = kcalloc(BITS_TO_LONGS(n_events), sizeof(*bits), GFP_KERNEL);
 	if (!bits)
 		return -ENOMEM;
-     if(camera_ctrl){ //for after DVT3 to change gpio define
-		for (i = 4; i < 8 ; i++) {
-			struct gpio_button_data *bdata = &ddata->data[i];
 
-		if (bdata->button->type != type)
-			continue;
-
-		if (only_disabled && !bdata->disabled)
-			continue;
-
-		__set_bit(bdata->button->code, bits);
-		}
-      }else{ //for before DVT3 
-	for (i = 0; i < ddata->n_buttons-4; i++) {
+	for (i = mkey_init; i < ddata->n_buttons-diff; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
 
 		if (bdata->button->type != type)
@@ -223,7 +205,7 @@ static ssize_t gpio_keys_attr_show_helper(struct gpio_keys_drvdata *ddata,
 
 		__set_bit(bdata->button->code, bits);
 	}
-      	}
+
 	ret = bitmap_scnlistprintf(buf, PAGE_SIZE - 2, bits, n_events);
 	buf[ret++] = '\n';
 	buf[ret] = '\0';
@@ -260,21 +242,7 @@ static ssize_t gpio_keys_attr_store_helper(struct gpio_keys_drvdata *ddata,
 		goto out;
 
 	/* First validate */
-	if(camera_ctrl){ //for after DVT3 to change gpio define	
-		for (i = 4; i < 8 ; i++) {
-			struct gpio_button_data *bdata = &ddata->data[i];
-
-			if (bdata->button->type != type)
-				continue;
-
-			if (test_bit(bdata->button->code, bits) &&
-		   	 !bdata->button->can_disable) {
-				error = -EINVAL;
-				goto out;
-			}
-		}
-	}else {// for  before DVT3
-	for (i = 0; i < ddata->n_buttons-4; i++) {
+	for (i = mkey_init; i < ddata->n_buttons-diff; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
 
 		if (bdata->button->type != type)
@@ -286,23 +254,10 @@ static ssize_t gpio_keys_attr_store_helper(struct gpio_keys_drvdata *ddata,
 			goto out;
 		}
 	}
-	}
 
 	mutex_lock(&ddata->disable_lock);
-	if(camera_ctrl){ //for after DVT3 to change gpio define
-		for (i = 4; i < 8 ; i++) {
-			struct gpio_button_data *bdata = &ddata->data[i];
 
-			if (bdata->button->type != type)
-				continue;
-
-			if (test_bit(bdata->button->code, bits))
-				gpio_keys_disable_button(bdata);
-			else
-				gpio_keys_enable_button(bdata);
-		}
-	}else {// for  before DVT3
-	for (i = 0; i < ddata->n_buttons-4; i++) {
+	for (i = mkey_init; i < ddata->n_buttons-diff; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
 
 		if (bdata->button->type != type)
@@ -313,7 +268,7 @@ static ssize_t gpio_keys_attr_store_helper(struct gpio_keys_drvdata *ddata,
 		else
 			gpio_keys_enable_button(bdata);
 	}
-	}
+
 	mutex_unlock(&ddata->disable_lock);
 
 out:
@@ -391,7 +346,7 @@ static struct attribute *gpio_keys_attrs[] = {
 static struct attribute_group gpio_keys_attr_group = {
 	.attrs = gpio_keys_attrs,
 };
- 
+
 #ifdef CCI_HWKEY_ALLOW_FORCE_PANIC
 void HWKEY_vCheckEnterRamDump(void)
 {
@@ -401,19 +356,19 @@ if(camera_ctrl)
 else
     iData2 = gpio_get_value(68);    // camera key
     iData3 = gpio_get_value(47);    //vol-down
- 
+
     iData1 = gpio_get_value(48);    //vol-up
- 
+
     Printlog("[%s] (gpio-68/69)=%d..\n", __FUNCTION__, iData2);
     Printlog("[%s] (gpio-47)=%d..\n", __FUNCTION__, iData3);
     Printlog("[%s] (gpio-48)=%d..\n", __FUNCTION__, iData1);
 
     if(( iData1 == 0) &&( iData2 == 0) && (iData3 == 0) )
     {
-    	PrintAA("[%s] enter RamDump! \n",__func__);
+	PrintAA("[%s] enter RamDump! \n",__func__);
         panic("RamDump cause by HW key!!");
     }
- 
+
 }
 #endif
 static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
@@ -422,16 +377,16 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	struct input_dev *input = bdata->input;
 	unsigned int type = button->type ?: EV_KEY;
 	int state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
-	//PrintAA("Enter [%s] type:%d state:%d\n",__func__,type,state);
+
 	if (type == EV_ABS) {
-		if (state){	
+		if (state){
 			input_event(input, type, button->code, button->value);
 		PrintAA("gpio-keys code:%d  value:%d \n",button->code,button->value);}
 	} else {
 		input_event(input, type, button->code, !!state);
 		PrintAA("gpio-keys code:%d  state:%d \n",button->code,!!state);
-#ifdef CCI_HWKEY_ALLOW_FORCE_PANIC		
-		HWKEY_vCheckEnterRamDump();		//use Volume up+ down + Camera key to ramdump !		
+#ifdef CCI_HWKEY_ALLOW_FORCE_PANIC
+		HWKEY_vCheckEnterRamDump();		//use Volume up+ down + Camera key to ramdump !
 #endif
 	}
 	input_sync(input);
@@ -581,8 +536,8 @@ static int __devinit gpio_keys_setup_key(struct platform_device *pdev,
 
 		isr = gpio_keys_gpio_isr;
                  wake_lock_init(&bdata->gpio_keys_wake_lock, WAKE_LOCK_SUSPEND, "gpio_keys_wake_lock");
-		// irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |IRQF_TIMER;
-		 irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING;
+		irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING;
+
 	} else {
 		if (!button->irq) {
 			dev_err(dev, "No IRQ specified\n");
@@ -616,11 +571,12 @@ static int __devinit gpio_keys_setup_key(struct platform_device *pdev,
 	if (error < 0) {
 		dev_err(dev, "Unable to claim irq %d; error %d\n",
 			bdata->irq, error);
-		goto fail;
+		goto fail1;
 	}
 
 	return 0;
-
+fail1:
+	wake_lock_destroy(&bdata->gpio_keys_wake_lock);
 fail:
 	if (gpio_is_valid(button->gpio))
 		gpio_free(button->gpio);
@@ -631,12 +587,14 @@ fail:
 static int gpio_keys_open(struct input_dev *input)
 {
 	struct gpio_keys_drvdata *ddata = input_get_drvdata(input);
+
 	return ddata->enable ? ddata->enable(input->dev.parent) : 0;
 }
 
 static void gpio_keys_close(struct input_dev *input)
 {
 	struct gpio_keys_drvdata *ddata = input_get_drvdata(input);
+
 	if (ddata->disable)
 		ddata->disable(input->dev.parent);
 }
@@ -800,33 +758,16 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 	/* Enable auto repeat feature of Linux input subsystem */
 	if (pdata->rep)
 		__set_bit(EV_REP, input->evbit);
- 
-#if 0
-	error = gpio_request(GPIO_CAMERA_CTRL, NULL);
-		if (error < 0) {
-		printk("[%s]Failed to request GPIO %d, error %d\n",
-			__func__,GPIO_CAMERA_CTRL, error);
-		//return error;
-		}
-#endif
-	Printlog("[%s]hw_id = %d \n",__func__,board_type_with_hw_id());
-	 camera_ctrl= (board_type_with_hw_id() > DVT2_BOARD_HW_ID);
-	Printlog("[%s] camera_ctrl :%d \n",__func__,camera_ctrl);
-//	camera_ctrl = gpio_get_value(GPIO_CAMERA_CTRL);	
-	if(camera_ctrl){//for after DVT3 to cahnge camera gpio define	
-		for (i = 4; i <8; i++) {
-			const struct gpio_keys_button *button = &pdata->buttons[i];
-			struct gpio_button_data *bdata = &ddata->data[i];
-
-			error = gpio_keys_setup_key(pdev, input, bdata, button);
-			if (error)
-				goto fail2;
-
-			if (button->wakeup)
-				wakeup = 1;
-		}
-	}else{ //for before DVT3.
-	for (i = 0; i < pdata->nbuttons-4; i++) {
+	 PrintAA("[%s]hw_id = %d \n",__func__,board_type_with_hw_id());
+         camera_ctrl= (board_type_with_hw_id() > DVT2_BOARD_HW_ID);
+        if(camera_ctrl){
+            mkey_init = 4;
+            diff = 0;
+        }else{
+             mkey_init = 0;
+             diff = 4;
+        }
+	for (i = mkey_init; i < ddata->n_buttons-diff; i++) {
 		const struct gpio_keys_button *button = &pdata->buttons[i];
 		struct gpio_button_data *bdata = &ddata->data[i];
 
@@ -837,9 +778,6 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 		if (button->wakeup)
 			wakeup = 1;
 	}
-			}
-	//PrintAA("[%s] GPIO_CAMERA_CTRL  value:%d",__func__,camera_ctrl);
- 
 
 	error = sysfs_create_group(&pdev->dev.kobj, &gpio_keys_attr_group);
 	if (error) {
@@ -854,22 +792,15 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 			error);
 		goto fail3;
 	}
-	if(camera_ctrl){//for after DVT3 to cahnge camera gpio define
-		/* get current state of buttons that are connected to GPIOs */
-		for (i = 4; i < 8; i++) {
-			struct gpio_button_data *bdata = &ddata->data[i];
-			if (gpio_is_valid(bdata->button->gpio))
-				gpio_keys_gpio_report_event(bdata);
-		}
-	}else{//for before DVT3
+
 	/* get current state of buttons that are connected to GPIOs */
-	for (i = 0; i < pdata->nbuttons-4; i++) {
+	for (i = mkey_init; i < ddata->n_buttons-diff; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
 		if (gpio_is_valid(bdata->button->gpio))
 			gpio_keys_gpio_report_event(bdata);
-		}
 	}
 	input_sync(input);
+
 
 	device_init_wakeup(&pdev->dev, wakeup);
 
@@ -878,13 +809,9 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
  fail3:
 	sysfs_remove_group(&pdev->dev.kobj, &gpio_keys_attr_group);
  fail2:
- if(camera_ctrl)
- 	while (--i >= 4)  
+	while (--i >= ddata->n_buttons-diff)
 		gpio_remove_key(&ddata->data[i]);
-else{ 	
-	while (--i >= 0) //for before DVT3.
-		gpio_remove_key(&ddata->data[i]);
-}
+
 	platform_set_drvdata(pdev, NULL);
  fail1:
 	input_free_device(input);
@@ -905,13 +832,10 @@ static int __devexit gpio_keys_remove(struct platform_device *pdev)
 	sysfs_remove_group(&pdev->dev.kobj, &gpio_keys_attr_group);
 
 	device_init_wakeup(&pdev->dev, 0);
-	if(camera_ctrl){ //for after DVT3 to change camera gpio define
-		for (i = 4; i < 8 ; i++)
-			gpio_remove_key(&ddata->data[i]);
-	}else{//for before DVT3.
-	for (i = 0; i < ddata->n_buttons-4; i++)
+
+	for (i = mkey_init; i < ddata->n_buttons-diff; i++) 
 		gpio_remove_key(&ddata->data[i]);
-	}
+
 	input_unregister_device(input);
 
 	/*
@@ -932,32 +856,15 @@ static int gpio_keys_suspend(struct device *dev)
 {
 	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
 	int i;
-	if(camera_ctrl){  
-		if (device_may_wakeup(dev)) {
-			for (i = 4; i < 8 ; i++) {
-				struct gpio_button_data *bdata = &ddata->data[i];
-				if (bdata->button->wakeup)
-					enable_irq_wake(bdata->irq);
-			}
-		}
-	}else{ 
+
 	if (device_may_wakeup(dev)) {
-		for (i = 0; i < ddata->n_buttons-4; i++) {
+		for (i = mkey_init; i < ddata->n_buttons-diff; i++) {
 			struct gpio_button_data *bdata = &ddata->data[i];
 			if (bdata->button->wakeup)
 				enable_irq_wake(bdata->irq);
 		}
 	}
-		}
-#if 0       
-	 if(camera_ctrl){
-       		gpio_free(GPIO_CAMERA_SNAPSHOT1);
-       		gpio_free(GPIO_CAMERA_FOCUS1);
-	}else{// for before DVT3 
-       gpio_free(GPIO_CAMERA_SNAPSHOT);
-       gpio_free(GPIO_CAMERA_FOCUS);
-	}       
-#endif
+
 	return 0;
 }
 
@@ -965,50 +872,16 @@ static int gpio_keys_resume(struct device *dev)
 {
 	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
 	int i;
-#if 0		
-	int rc;         
-        if(camera_ctrl){ 
-        	rc = gpio_request(GPIO_CAMERA_SNAPSHOT1, "gpio_keys");
-		if (rc < 0) {
-			pr_err("%s: Fail request GPIO_CAMERA_SNAPSHOT1 pin r=%d\n", __func__, rc);
-       		}
-		rc = gpio_request(GPIO_CAMERA_FOCUS1, "gpio_keys");
-		if (rc < 0) {
-			pr_err("%s: Fail request GPIO_CAMERA_FOCUS1 pin r=%d\n", __func__, rc);
-		}	
-	}else{ 
-        rc = gpio_request(GPIO_CAMERA_SNAPSHOT, "gpio_keys");
-	if (rc < 0) {
-		pr_err("%s: Fail request GPIO_CAMERA_SNAPSHOT pin r=%d\n", __func__, rc);
-		}
-	rc = gpio_request(GPIO_CAMERA_FOCUS, "gpio_keys");
-	if (rc < 0) {
-		pr_err("%s: Fail request GPIO_CAMERA_FOCUS pin r=%d\n", __func__, rc);
-		}
-	} 
-#endif
-	if(camera_ctrl){ 
-	     for (i = 4; i < 8 ; i++) {
-			struct gpio_button_data *bdata = &ddata->data[i];
-			if (bdata->button->wakeup && device_may_wakeup(dev))
-				disable_irq_wake(bdata->irq);
-#if 0
-			if (gpio_is_valid(bdata->button->gpio))
-				gpio_keys_gpio_report_event(bdata);
-#endif
-		}	
-	}else{ 
-	for (i = 0; i < ddata->n_buttons-4; i++) {
+
+	for (i = mkey_init; i < ddata->n_buttons-diff; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
 		if (bdata->button->wakeup && device_may_wakeup(dev))
 			disable_irq_wake(bdata->irq);
-#if 0	
+
 		if (gpio_is_valid(bdata->button->gpio))
 			gpio_keys_gpio_report_event(bdata);
-#endif
-		}
 	}
-	//input_sync(ddata->input);
+	input_sync(ddata->input);
 
 	return 0;
 }

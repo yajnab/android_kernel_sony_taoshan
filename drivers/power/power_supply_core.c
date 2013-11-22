@@ -6,7 +6,7 @@
  *  Copyright © 2003  Ian Molton <spyro@f2s.com>
  *
  *  Modified: 2004, Oct     Szabolcs Gyurko
- * Copyright (C) 2012 Sony Mobile Communications AB.
+ *
  *  You may use this code as per GPL version 2
  */
 
@@ -282,10 +282,8 @@ int power_supply_register(struct device *parent, struct power_supply *psy)
 	int rc;
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
-	if (!dev) {
-		printk("CH(L) %s - dev fail",__func__);
+	if (!dev)
 		return -ENOMEM;
-	}
 
 	device_initialize(dev);
 
@@ -299,25 +297,19 @@ int power_supply_register(struct device *parent, struct power_supply *psy)
 	INIT_WORK(&psy->changed_work, power_supply_changed_work);
 
 	rc = kobject_set_name(&dev->kobj, "%s", psy->name);
-	if (rc) {
-		printk("CH(L) %s - kobject_set_name fail",__func__);//LO
+	if (rc)
 		goto kobject_set_name_failed;
-	}
 
 	rc = device_add(dev);
-	if (rc) {
-		printk("CH(L) %s - device_add fail\n",__func__);
+	if (rc)
 		goto device_add_failed;
-	}
 
 	spin_lock_init(&psy->changed_lock);
 	wake_lock_init(&psy->work_wake_lock, WAKE_LOCK_SUSPEND, "power-supply");
 
 	rc = power_supply_create_triggers(psy);
-	if (rc) {
-		printk("CH(L) %s - power_supply_create_triggers fail\n",__func__);//LO
+	if (rc)
 		goto create_triggers_failed;
-	}
 
 	power_supply_changed(psy);
 
@@ -348,10 +340,8 @@ static int __init power_supply_class_init(void)
 {
 	power_supply_class = class_create(THIS_MODULE, "power_supply");
 
-	if (IS_ERR(power_supply_class)) {
-		printk("CH(L) %s - power_supply_class fail\n",__func__);//LO
+	if (IS_ERR(power_supply_class))
 		return PTR_ERR(power_supply_class);
-	}
 
 	power_supply_class->dev_uevent = power_supply_uevent;
 	power_supply_init_attrs(&power_supply_dev_type);

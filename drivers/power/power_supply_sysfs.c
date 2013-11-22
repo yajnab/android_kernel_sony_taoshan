@@ -7,7 +7,7 @@
  *  Copyright © 2003  Ian Molton <spyro@f2s.com>
  *
  *  Modified: 2004, Oct     Szabolcs Gyurko
- * Copyright (C) 2012 Sony Mobile Communications AB.
+ *
  *  You may use this code as per GPL version 2
  */
 
@@ -18,11 +18,6 @@
 #include <linux/stat.h>
 
 #include "power_supply.h"
-
-//S:LO
-static char log_buf[512];
-static ssize_t cx = 0;
-//E:LO
 
 /*
  * This is because the name "current" breaks the device attr macro.
@@ -92,32 +87,22 @@ static ssize_t power_supply_show_property(struct device *dev,
 		return ret;
 	}
 
-	if (off == POWER_SUPPLY_PROP_STATUS) {
-		cx += snprintf(log_buf+cx,sizeof(log_buf)-cx-1,"%s=%s, ",attr->attr.name,status_text[value.intval]);//LO
+	if (off == POWER_SUPPLY_PROP_STATUS)
 		return sprintf(buf, "%s\n", status_text[value.intval]);
-	} else if (off == POWER_SUPPLY_PROP_CHARGE_TYPE) {
-		cx += snprintf(log_buf+cx,sizeof(log_buf)-cx-1,"%s=%s, ",attr->attr.name,charge_type[value.intval]);//LO
+	else if (off == POWER_SUPPLY_PROP_CHARGE_TYPE)
 		return sprintf(buf, "%s\n", charge_type[value.intval]);
-	} else if (off == POWER_SUPPLY_PROP_HEALTH) {
-		cx += snprintf(log_buf+cx,sizeof(log_buf)-cx-1,"%s=%s, ",attr->attr.name,health_text[value.intval]);//LO
+	else if (off == POWER_SUPPLY_PROP_HEALTH)
 		return sprintf(buf, "%s\n", health_text[value.intval]);
-	} else if (off == POWER_SUPPLY_PROP_TECHNOLOGY) {
+	else if (off == POWER_SUPPLY_PROP_TECHNOLOGY)
 		return sprintf(buf, "%s\n", technology_text[value.intval]);
-	} else if (off == POWER_SUPPLY_PROP_CAPACITY_LEVEL) {
+	else if (off == POWER_SUPPLY_PROP_CAPACITY_LEVEL)
 		return sprintf(buf, "%s\n", capacity_level_text[value.intval]);
-	} else if (off == POWER_SUPPLY_PROP_TYPE) {
+	else if (off == POWER_SUPPLY_PROP_TYPE)
 		return sprintf(buf, "%s\n", type_text[value.intval]);
-	} else if (off == POWER_SUPPLY_PROP_SCOPE) {
+	else if (off == POWER_SUPPLY_PROP_SCOPE)
 		return sprintf(buf, "%s\n", scope_text[value.intval]);
-	} else if (off >= POWER_SUPPLY_PROP_MODEL_NAME) {
+	else if (off >= POWER_SUPPLY_PROP_MODEL_NAME)
 		return sprintf(buf, "%s\n", value.strval);
-	}
-
-	//S:LO
-	if (strcmp(attr->attr.name,"energy_full") && strcmp(attr->attr.name,"voltage_max_design") && strcmp(attr->attr.name,"voltage_min_design")) {
-		cx += snprintf(log_buf+cx,sizeof(log_buf)-cx-1,"%s=%d, ",attr->attr.name,value.intval);
-	}
-	//E:LO
 
 	return sprintf(buf, "%d\n", value.intval);
 }
@@ -268,35 +253,34 @@ int power_supply_uevent(struct device *dev, struct kobj_uevent_env *env)
 	int ret = 0, j;
 	char *prop_buf;
 	char *attrname;
+        //S:LO
+	char log_buf[512];
+	ssize_t cx = 0;
+	char *pch;
+        //E:LO
 
 	dev_dbg(dev, "uevent\n");
 
-        //S:LO
-	cx = 0;
-	memset((void*) log_buf, 0x0, sizeof(log_buf));
-        //E:LO
-
 	if (!psy || !psy->dev) {
 		dev_dbg(dev, "No power supply yet\n");
-		printk("CH(L) %s - No power supply yet\n",__func__);//LO
 		return ret;
 	}
 
 	dev_dbg(dev, "POWER_SUPPLY_NAME=%s\n", psy->name);
 
 	ret = add_uevent_var(env, "POWER_SUPPLY_NAME=%s", psy->name);
-	cx += snprintf(log_buf+cx,sizeof(log_buf)-cx-1,"%s : ",psy->name);//LO
-	if (ret) {
-		printk("CH(L) %s - add_uevent_var - return\n", __func__);//LO
+	if (ret)
 		return ret;
-	}
 
 	prop_buf = (char *)get_zeroed_page(GFP_KERNEL);
-	if (!prop_buf) {
-		printk("CH(L) %s - prop_buf - return\n", __func__);//LO
+	if (!prop_buf)
 		return -ENOMEM;
-	}
 
+	//S:LO
+	cx = 0;
+	memset((void*) log_buf, 0x0, sizeof(log_buf));
+	cx += snprintf(log_buf+cx,sizeof(log_buf)-cx,"%s:",psy->name);
+	//E:LO
 	for (j = 0; j < psy->num_properties; j++) {
 		struct device_attribute *attr;
 		char *line;
@@ -311,10 +295,8 @@ int power_supply_uevent(struct device *dev, struct kobj_uevent_env *env)
 			continue;
 		}
 
-		if (ret < 0) {
-			printk("CH(L) %s - power_supply_show_property fail\n",__func__);//LO
+		if (ret < 0)
 			goto out;
-		}
 
 		line = strchr(prop_buf, '\n');
 		if (line)
@@ -322,7 +304,6 @@ int power_supply_uevent(struct device *dev, struct kobj_uevent_env *env)
 
 		attrname = kstruprdup(attr->attr.name, GFP_KERNEL);
 		if (!attrname) {
-			printk("CH(L) %s - attrname fail\n",__func__);//LO
 			ret = -ENOMEM;
 			goto out;
 		}
@@ -331,12 +312,23 @@ int power_supply_uevent(struct device *dev, struct kobj_uevent_env *env)
 
 		ret = add_uevent_var(env, "POWER_SUPPLY_%s=%s", attrname, prop_buf);
 		kfree(attrname);
-		if (ret) {
-			printk("CH(L) %s - add_uevent_var fail\n",__func__);//LO
+		if (ret)
 			goto out;
-                }
+		//S:LO
+		if ((sizeof(log_buf)-cx)<=0) {
+			pch=strchr(log_buf,':');
+			memset((void*) (pch+1), 0x0, sizeof(pch+1));
+			cx = pch-log_buf+1;
+		}
+		if (strcmp(attr->attr.name,"energy_full") && strcmp(attr->attr.name,"voltage_max_design") 
+			&& strcmp(attr->attr.name,"voltage_min_design")&& strcmp(attr->attr.name,"charge_now")
+			&& strcmp(attr->attr.name,"charge_full")&& strcmp(attr->attr.name,"current_max")
+			&& strcmp(attr->attr.name,"technology")){
+			cx += snprintf(log_buf+cx,sizeof(log_buf)-cx,"%s=%s, ",attr->attr.name,prop_buf);
+		}
+		//E:LO
 	}
-	printk("CH(L)=> %s\n",log_buf);//LO
+        printk("CH(L)=> %s\n",log_buf);//LO
 
 out:
 	free_page((unsigned long)prop_buf);

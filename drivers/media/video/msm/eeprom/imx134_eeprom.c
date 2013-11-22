@@ -65,6 +65,7 @@ static struct msm_camera_eeprom_info_t imx134_calib_supp_info = {
 	{TRUE, 36, 0, 16777216},
 	{TRUE, 768, 2, 1},
 	{FALSE, 0, 0, 1},
+	{FALSE, 0, 0, 1},
 };
 
 static struct msm_camera_eeprom_read_t imx134_eeprom_read_tbl[] = {

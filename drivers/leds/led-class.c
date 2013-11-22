@@ -292,11 +292,7 @@ static ssize_t led_batpa_store(struct device *dev,
 
 
 static struct device_attribute led_class_attrs[] = {
-	#ifdef ORG_VER
 	__ATTR(brightness, 0644, led_brightness_show, led_brightness_store),
-	#else
-	__ATTR(brightness, 0644, led_brightness_show, led_brightness_store),
-	#endif
 	__ATTR(max_brightness, 0644, led_max_brightness_show,
 			led_max_brightness_store),
 	__ATTR(flashmode, 0644, led_mode_show, led_mode_store),

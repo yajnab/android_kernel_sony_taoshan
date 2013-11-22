@@ -1,5 +1,5 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
  * only version 2 as published by the Free Software Foundation.
@@ -10,8 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#include <linux/mfd/pm8xxx/pm8921-bms.h>
-
+#include <linux/mfd/pm8xxx/batterydata-lib.h>
 
 #if defined(ORG_VER)
 #else
@@ -207,13 +206,14 @@ static struct pc_temp_ocv_lut pc_temp_ocv = {
 };
 #endif
 
-struct pm8921_bms_battery_data palladium_1500_data = {
+struct bms_battery_data palladium_1500_data = {
         #ifdef ORG_VER
 	.fcc			= 1500,
 	.fcc_temp_lut		= &fcc_temp,
 	.pc_temp_ocv_lut	= &pc_temp_ocv,
 	.rbatt_sf_lut		= &rbatt_sf,
 	.default_rbatt_mohm	= 236,
+	.rbatt_capacitive_mohm	= 50,
         #else
         .fcc				= 1700,
 	.fcc_temp_lut		= &fcc_temp,
@@ -221,5 +221,6 @@ struct pm8921_bms_battery_data palladium_1500_data = {
 	.pc_temp_ocv_lut	= &pc_temp_ocv,
         .rbatt_sf_lut		=&rbatt_sf,
 	.default_rbatt_mohm		=161,
+        .rbatt_capacitive_mohm	= 0,
         #endif
 };

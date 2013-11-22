@@ -10,8 +10,6 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- * NOTE: This file has been modified by Sony Ericsson Mobile Communications AB /
- * Sony Mobile Communications AB. Modifications are licensed under the License.
  */
 
 
@@ -185,11 +183,12 @@ struct interrupt_data {
 #define ASC(x)		((u8) ((x) >> 8))
 #define ASCQ(x)		((u8) (x))
 
-/* VPD(Vital product data) Page Name */
+//S WHCK-MSC
+/* VPD(Vital product data) Page Name */ 
 #define VPD_SUPPORTED_VPD_PAGES		0x00
 #define VPD_UNIT_SERIAL_NUMBER		0x80
 #define VPD_DEVICE_IDENTIFICATION	0x83
-
+//E WHCK-MSC
 /*-------------------------------------------------------------------------*/
 
 
@@ -214,7 +213,7 @@ struct fsg_lun {
 	unsigned int	blkbits;	/* Bits of logical block size of bound block device */
 	unsigned int	blksize;	/* logical block size of bound block device */
 	struct device	dev;
-	char		*lun_filename;
+	char		*lun_filename; //WHCK-MSC
 #ifdef CONFIG_USB_MSC_PROFILING
 	spinlock_t	lock;
 	struct {
@@ -952,14 +951,16 @@ static ssize_t fsg_store_file(struct device *dev, struct device_attribute *attr,
 	if (fsg_lun_is_open(curlun)) {
 		fsg_lun_close(curlun);
 		curlun->unit_attention_data = SS_MEDIUM_NOT_PRESENT;
-		kfree(curlun->lun_filename);
-		curlun->lun_filename = NULL;
+		kfree(curlun->lun_filename); //WHCK-MSC
+		curlun->lun_filename = NULL; //WHCK-MSC
 	}
 
 	/* Load new medium */
 	if (count > 0 && buf[0]) {
 		rc = fsg_lun_open(curlun, buf);
-		if (rc == 0) {
+		if (rc == 0)
+//S  WHCK-MSC
+	        {
 			kfree(curlun->lun_filename);
 			curlun->lun_filename = kmalloc(count+1, GFP_KERNEL);
 			if (!curlun->lun_filename) {
@@ -970,10 +971,11 @@ static ssize_t fsg_store_file(struct device *dev, struct device_attribute *attr,
 			} else {
 				memcpy(curlun->lun_filename, buf, count);
 				curlun->lun_filename[count] = '\0';
-			curlun->unit_attention_data =
+//E  WHCK-MSC
+				curlun->unit_attention_data =
 					SS_NOT_READY_TO_READY_TRANSITION;
-	}
-		}
+			} //WHCK-MSC
+		} //WHCK-MSC
 	}
 	up_write(filesem);
 	return (rc < 0 ? rc : count);

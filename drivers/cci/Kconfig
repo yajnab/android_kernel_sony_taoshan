@@ -1,4 +1,5 @@
 #
+# Compalcomm drivers
 #
 # Copyright (C) 2012 Sony Mobile Communications AB.
 #
@@ -14,13 +15,15 @@ if CCI_DRIVERS
 source "drivers/cci/klog/Kconfig"
 #[SA77] <== CCI KLog, added by Jimmy@CCI
 
+source "drivers/cci/cci_stuff/Kconfig"
+
 #[SA77] S:LE
 source "drivers/cci/cci_kernel_info/Kconfig"
 #[SA77] E:LE
 
-source "drivers/cci/cci_stuff/Kconfig"
+source "drivers/cci/somc_xssm/Kconfig"
 
 source "drivers/cci/somc_sw/Kconfig"
 
-source "drivers/cci/somc_xssm/Kconfig"
+source "drivers/cci/cci_powermonitor/Kconfig"
 endif

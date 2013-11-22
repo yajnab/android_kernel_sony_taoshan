@@ -47,7 +47,7 @@
 #define INIT_ATR_OUT_MID       0xA00
 #define INIT_ATR_OUT_SAT       0xFFF
 #define ATR_OFFSET             0x00    
-// Luke 0701
+// Luke 0701 HDR video
 #define THRESHOLD_DEAD_ZONE    30 //3// 255 /*lokesh:  just a hack */
 #define THRESHOLD_0            30 //3 //20 /*lokesh: th0 should be same as deadzone*/       
 #define THRESHOLD_1            42//13
@@ -1901,6 +1901,7 @@ static struct msm_sensor_output_info_t imx134b_dimensions[] = {
 };
 /*E:20121103*/
 
+#if 0 //remove to user space for bsp1744s
 static struct msm_camera_csid_vc_cfg imx134_cid_cfg[] = {
        {0, CSI_RAW10, CSI_DECODE_10BIT},
        {1, 0x35, CSI_DECODE_10BIT},
@@ -1929,6 +1930,7 @@ static struct msm_camera_csi2_params *imx134_csi_params_array[] = {
 	&imx134_csi_params,
 	&imx134_csi_params,
 };
+#endif
 
 static struct msm_sensor_output_reg_addr_t imx134_reg_addr = {
 	.x_output = 0x034C,
@@ -2333,7 +2335,7 @@ int32_t imx134_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
 
        uint16_t atr_out_noise = 0;
        uint16_t atr_out_mid = 0;
-       float tc_gain;
+       //float tc_gain;
        static uint16_t deadzone_tolerence = 0;
 
        //uint32_t atr_threshold = 50;
@@ -2376,8 +2378,8 @@ int32_t imx134_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
         if (line > (fl_lines - offset))
                 fl_lines = line + offset;
 
-       //CDBG("imx134_write_exp_gain: line: %d gain: %d luma_avg:%d",line,gain,luma_avg);
-       //CDBG("lokesh: imx134_write_exp_gain: luma_avg: %d YminStat: %d YMaxStat: %d",luma_avg,AvgYminStat,AvgYmaxStat);
+       //pr_info("imx134_write_exp_gain: line: %d gain: %d luma_avg:%d",line,gain,luma_avg);
+       //pr_info("lokesh: imx134_write_exp_gain: luma_avg: %d YminStat: %d YMaxStat: %d",luma_avg,AvgYminStat,AvgYmaxStat);
         s_ctrl->func_tbl->sensor_group_hold_on(s_ctrl);
         msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
                 s_ctrl->sensor_output_reg_addr->frame_length_lines, fl_lines,
@@ -2459,7 +2461,7 @@ int32_t imx134_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
                      SHORT_GAIN_BYTE_ADDR, shortshutter_gain,
                      MSM_CAMERA_I2C_BYTE_DATA);
 
-              //CDBG("lokesh: longtshutter =%d, shortshutter=%d, longgain =%d\n",line, shortshutter, gain);
+              //pr_info("lokesh: longtshutter =%d, shortshutter=%d, longgain =%d\n",line, shortshutter, gain);
               msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
                      SHORT_SHUTTER_WORD_ADDR, shortshutter,
                      MSM_CAMERA_I2C_WORD_DATA);
@@ -2478,7 +2480,7 @@ int32_t imx134_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
                      msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
                             TC_SWITCH_BYTE_ADDR, 0x00, MSM_CAMERA_I2C_BYTE_DATA);
 // Luke 0701 -->
-#if 1
+#if 0
                     /* if (luma_avg < THRESHOLD_0) {  lokesh: Here assuming th0 == th_deadzone
                             atr_out_noise = 0;
                             atr_out_mid = 0;
@@ -2658,7 +2660,7 @@ static struct msm_sensor_fn_t imx134_func_tbl = {
 	.sensor_config = msm_sensor_config,
 	.sensor_power_up = msm_sensor_power_up,
 	.sensor_power_down = msm_sensor_power_down,
-	.sensor_adjust_frame_lines = msm_sensor_adjust_frame_lines,
+	.sensor_adjust_frame_lines = msm_sensor_adjust_frame_lines1,
 	.sensor_get_csi_params = msm_sensor_get_csi_params,
     /*S  JackBB 2012/10/24  */
     .sensor_write_atr_control = imx134_sensor_write_atr_control,
@@ -2700,7 +2702,7 @@ static struct msm_sensor_ctrl_t imx134_s_ctrl = {
 	.sensor_id_info = &imx134_id_info,
 	.sensor_exp_gain_info = &imx134_exp_gain_info,
 	.cam_mode = MSM_SENSOR_MODE_INVALID,
-	.csi_params = &imx134_csi_params_array[0],
+	//.csi_params = &imx134_csi_params_array[0],
 	.msm_sensor_mutex = &imx134_mut,
 	.sensor_i2c_driver = &imx134_i2c_driver,
 	.sensor_v4l2_subdev_info = imx134_subdev_info,

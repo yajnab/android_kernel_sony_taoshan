@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  * Copyright (C) 2012 Sony Mobile Communications AB.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -9,6 +9,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
  */
 
 #include <linux/module.h>
@@ -42,6 +43,14 @@ long* powerpt = (long*)POWER_OFF_SPECIAL_ADDR;
 long* unknowflag = (long*)UNKONW_CRASH_SPECIAL_ADDR;
 long* backupcrashflag = (long*)CRASH_SPECIAL_ADDR;
 #endif
+#define ABNORAML_NONE		0x0
+#define ABNORAML_REBOOT		0x1
+#define ABNORAML_CRASH		0x2
+#define ABNORAML_POWEROFF	0x3
+
+static long abnormalflag = ABNORAML_NONE;
+
+
 
 #define WDT0_RST	0x38
 #define WDT0_EN		0x40
@@ -74,6 +83,14 @@ long* backupcrashflag = (long*)CRASH_SPECIAL_ADDR;
 #define CONFIG_WARMBOOT_CRASH       0xc0dedead
 static void* warm_boot_addr;
 void set_warmboot(void);
+
+#ifdef CONFIG_LGE_CRASH_HANDLER
+#define LGE_ERROR_HANDLER_MAGIC_NUM	0xA97F2C46
+#define LGE_ERROR_HANDLER_MAGIC_ADDR	0x18
+void *lge_error_handler_cookie_addr;
+static int ssr_magic_number = 0;
+#endif
+
 static int restart_mode;
 void *restart_reason;
 
@@ -113,6 +130,10 @@ static void set_dload_mode(int on)
 		__raw_writel(on ? 0xE47B337D : 0, dload_mode_addr);
 		__raw_writel(on ? 0xCE14091A : 0,
 		       dload_mode_addr + sizeof(unsigned int));
+#ifdef CONFIG_LGE_CRASH_HANDLER
+		__raw_writel(on ? LGE_ERROR_HANDLER_MAGIC_NUM : 0,
+				lge_error_handler_cookie_addr);
+#endif
 		mb();
 #endif
 	}
@@ -143,6 +164,9 @@ static int dload_set(const char *val, struct kernel_param *kp)
 	}
 
 	set_dload_mode(download_mode);
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	ssr_magic_number = 0;
+#endif
 
 	return 0;
 }
@@ -153,21 +177,30 @@ static int dload_set(const char *val, struct kernel_param *kp)
 void msm_set_restart_mode(int mode)
 {
 	restart_mode = mode;
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	if (download_mode == 1 && (mode & 0xFFFF0000) == 0x6D630000)
+		panic("LGE crash handler detected panic");
+#endif
 }
 EXPORT_SYMBOL(msm_set_restart_mode);
 
 static void __msm_power_off(int lower_pshold)
 {
-
+	if ((abnormalflag == ABNORAML_CRASH) || (abnormalflag == ABNORAML_REBOOT))
+	{
+		printk(KERN_NOTICE "Not allow power off after panic/fatal/reset happen\n");
+		goto reset2;
+	}
+	
+	abnormalflag = ABNORAML_POWEROFF;
 	if(system_flag == inactive)
 	{
-#ifdef CONFIG_CCI_KLOG	
-		*powerpt = (POWERONOFFRECORD + poweroff);
-#endif		
 		system_flag = poweroff;
+#ifdef CONFIG_CCI_KLOG	
+		*powerpt = (POWERONOFFRECORD + system_flag);
+#endif		
 		mb();
 	}	
-
 
 #ifdef CONFIG_CCI_KLOG
 	cklc_save_magic(KLOG_MAGIC_POWER_OFF, KLOG_STATE_NONE);
@@ -185,6 +218,7 @@ static void __msm_power_off(int lower_pshold)
 		mdelay(10000);
 		printk(KERN_ERR "Powering off has failed\n");
 	}
+reset2: 	
 	return;
 }
 
@@ -244,6 +278,43 @@ static irqreturn_t resout_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_LGE_CRASH_HANDLER
+#define SUBSYS_NAME_MAX_LENGTH	40
+
+int get_ssr_magic_number(void)
+{
+	return ssr_magic_number;
+}
+
+void set_ssr_magic_number(const char* subsys_name)
+{
+	int i;
+	const char *subsys_list[] = {
+		"modem", "riva", "dsps", "lpass",
+		"external_modem", "gss",
+	};
+
+	ssr_magic_number = (0x6d630000 | 0x0000f000);
+
+	for (i=0; i < ARRAY_SIZE(subsys_list); i++) {
+		if (!strncmp(subsys_list[i], subsys_name,
+					SUBSYS_NAME_MAX_LENGTH)) {
+			ssr_magic_number = (0x6d630000 | ((i+1)<<12));
+			break;
+		}
+	}
+}
+
+void set_kernel_crash_magic_number(void)
+{
+	pet_watchdog();
+	if (ssr_magic_number == 0)
+		__raw_writel(0x6d630100, restart_reason);
+	else
+		__raw_writel(restart_mode, restart_reason);
+}
+#endif /* CONFIG_LGE_CRASH_HANDLER */
+
 void msm_restart(char mode, const char *cmd)
 {
 
@@ -258,6 +329,10 @@ void msm_restart(char mode, const char *cmd)
 #endif
 #ifdef CONFIG_MSM_DLOAD_MODE
 
+#ifndef CCI_KLOG_ALLOW_FORCE_PANIC
+	if ((abnormalflag == ABNORAML_POWEROFF) || (abnormalflag == ABNORAML_REBOOT))
+		goto reset3;		
+#endif
 	/* This looks like a normal reboot at this point. */
 	set_dload_mode(0);
 
@@ -265,37 +340,50 @@ void msm_restart(char mode, const char *cmd)
 	set_dload_mode(in_panic);
 	if(in_panic)
 	{
+#ifndef CCI_KLOG_ALLOW_FORCE_PANIC
+		if (abnormalflag == ABNORAML_NONE)
+#endif
+		abnormalflag = ABNORAML_CRASH;
 		set_warmboot();
 #ifdef CCI_KLOG_ALLOW_FORCE_PANIC			
-			__raw_writel(CONFIG_WARMBOOT_CRASH, restart_reason);
+		__raw_writel(CONFIG_WARMBOOT_CRASH, restart_reason);
 #else
-			__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
-			*backupcrashflag = CONFIG_WARMBOOT_CRASH;
+		__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
+		*backupcrashflag = CONFIG_WARMBOOT_CRASH;
 #endif	
 	}
 	/* Write download mode flags if restart_mode says so */
-	if (restart_mode == RESTART_DLOAD)
+	if (restart_mode == RESTART_DLOAD) {
+#ifdef CCI_KLOG_ALLOW_FORCE_PANIC
+		if (abnormalflag == ABNORAML_NONE)
+		{
+#endif
+			abnormalflag = ABNORAML_REBOOT;
 
 #ifdef CONFIG_CCI_KLOG
-	{
 		cklc_save_magic(KLOG_MAGIC_DOWNLOAD_MODE, KLOG_STATE_DOWNLOAD_MODE);
+#endif // #ifdef CONFIG_CCI_KLOG
 
-		if(system_flag == inactive)
-		{
-#ifdef CONFIG_CCI_KLOG		
-			*powerpt = (POWERONOFFRECORD + adloadmode);
-#endif			
+		if(system_flag == inactive)	
 			system_flag = adloadmode;
-		}
 
 		set_dload_mode(1);
 		set_warmboot();
-		__raw_writel(CONFIG_WARMBOOT_S1 , restart_reason);		
+		__raw_writel(CONFIG_WARMBOOT_S1 , restart_reason);	
+#ifdef CONFIG_LGE_CRASH_HANDLER
+		writel(0x6d63c421, restart_reason);
+		goto reset;
+#endif
+#ifdef CCI_KLOG_ALLOW_FORCE_PANIC
+		}
+		else
+		{
+			pm8xxx_reset_pwr_off(1);
+			printk(KERN_NOTICE "Not allow reset after panic/fatal/poweroff happen\n");
+			goto reset2;
+		}
+#endif
 	}
-#else // #ifdef CONFIG_CCI_KLOG
-		set_dload_mode(1);
-#endif // #ifdef CONFIG_CCI_KLOG
-
 
 	/* Kill download mode if master-kill switch is set */
 	if (!download_mode)
@@ -306,29 +394,52 @@ void msm_restart(char mode, const char *cmd)
 
 	pm8xxx_reset_pwr_off(1);
 
+#ifdef CCI_KLOG_ALLOW_FORCE_PANIC
+	if (abnormalflag == ABNORAML_CRASH)
+	{
+		printk(KERN_NOTICE "Not allow reset after panic/fatal happen\n");
+		goto reset2;
+	}
+#endif
 
-#ifdef CONFIG_CCI_KLOG
 	if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
+
+#ifdef CONFIG_CCI_KLOG
+			cklc_save_magic(KLOG_MAGIC_BOOTLOADER, KLOG_STATE_NONE);
+#endif // #ifdef CONFIG_CCI_KLOG
+
+#if 0
+			__raw_writel(0x77665500, restart_reason);
+#else
 			set_warmboot();
 			__raw_writel(CONFIG_WARMBOOT_FB, restart_reason);
-			cklc_save_magic(KLOG_MAGIC_BOOTLOADER, KLOG_STATE_NONE);
-
             if(system_flag == inactive)
-	            system_flag = normalreboot_bootloader;	
-
+	            system_flag = normalreboot_bootloader;		
+#endif
 		} else if (!strncmp(cmd, "recovery", 8)) {
-			__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
+
+#ifdef CONFIG_CCI_KLOG
 			cklc_save_magic(KLOG_MAGIC_RECOVERY, KLOG_STATE_NONE);
+#endif // #ifdef CONFIG_CCI_KLOG
 
+#if 0
+			__raw_writel(0x77665502, restart_reason);
+#else
+			__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
             if(system_flag == inactive)
-	            system_flag = normalreboot_recovery;	
-
+	            system_flag = normalreboot_recovery;
+#endif
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned long code;
 			code = simple_strtoul(cmd + 4, NULL, 16) & 0xff;
-		//	__raw_writel(0x6f656d00 | code, restart_reason);
+#if 0
+			__raw_writel(0x6f656d00 | code, restart_reason);
+#else
 			__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
+#endif
+
+#ifdef CONFIG_CCI_KLOG
 			snprintf(buf, KLOG_MAGIC_LENGTH + 1, "%s%lX", KLOG_MAGIC_OEM_COMMAND, code);
 			kprintk("OEM command:code=%lX, buf=%s\n", code, buf);
 #ifdef CCI_KLOG_ALLOW_FORCE_PANIC
@@ -393,88 +504,72 @@ void msm_restart(char mode, const char *cmd)
 #else // #ifdef CCI_KLOG_ALLOW_FORCE_PANIC
 			cklc_save_magic(buf, KLOG_STATE_NONE);
 #endif // #ifdef CCI_KLOG_ALLOW_FORCE_PANIC
-
             if(system_flag == inactive)
 	            system_flag = normalreboot_oem;	
+#endif // #ifdef CONFIG_CCI_KLOG
 
-		}
+		} 
 		else if (!strncmp(cmd, "oemS", 4)) 
 		{
 			set_warmboot();
 			__raw_writel(CONFIG_WARMBOOT_S1, restart_reason);
+			if(system_flag == inactive)		
+				system_flag = adloadmode;
 		}
 		else if (!strncmp(cmd, "oemF", 4)) 
 		{
 			set_warmboot();
 			__raw_writel(CONFIG_WARMBOOT_FOTA , restart_reason);
-		}		
+			if(system_flag == inactive)
+				system_flag = normalreboot_recovery;
+		}
 		else 
 		{
-			set_warmboot();
-			__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
+
+#ifdef CONFIG_CCI_KLOG
 			cklc_save_magic(KLOG_MAGIC_REBOOT, KLOG_STATE_NONE);
+#endif // #ifdef CONFIG_CCI_KLOG
 
-            if(system_flag == inactive)
-	            system_flag = normalreboot;	
-
-		}
-	}
-	else
-	{
-		cklc_save_magic(KLOG_MAGIC_REBOOT, KLOG_STATE_NONE);
-		__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
-
-		if(in_panic)
-		{
-			set_warmboot();
-#ifdef CCI_KLOG_ALLOW_FORCE_PANIC			
-			__raw_writel(CONFIG_WARMBOOT_CRASH, restart_reason);
+#if 0
+			__raw_writel(0x77665501, restart_reason);
 #else
-			__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
-			*backupcrashflag = CONFIG_WARMBOOT_CRASH;
-#endif			
-		}
-
-		if (restart_mode == RESTART_DLOAD)
-		{
-			cklc_save_magic(KLOG_MAGIC_DOWNLOAD_MODE, KLOG_STATE_DOWNLOAD_MODE);
-			if(system_flag == inactive)
-			{
-#ifdef CONFIG_CCI_KLOG			
-				*powerpt = (POWERONOFFRECORD + adloadmode);
-#endif				
-				system_flag = adloadmode;
-			}
+			abnormalflag = ABNORAML_REBOOT;
 			set_warmboot();
-			__raw_writel(CONFIG_WARMBOOT_S1 , restart_reason);		
-		}		
+			__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
+			if(system_flag == inactive)
+				system_flag = normalreboot;	
+#endif
+		}
+	} 		
+	else 
+	{
 
+#ifdef CONFIG_CCI_KLOG
+		cklc_save_magic(KLOG_MAGIC_REBOOT, KLOG_STATE_NONE);
+#endif // #ifdef CONFIG_CCI_KLOG
 
+#if 0
+		__raw_writel(0x77665501, restart_reason);
+#else
+		abnormalflag = ABNORAML_REBOOT;
+		set_warmboot();
+		__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
         if(system_flag == inactive)
 	        system_flag = normalreboot;	
-
+#endif
 	}
-
+#ifdef CCI_KLOG_ALLOW_FORCE_PANIC
+reset2:	
+#endif	
 #ifdef CONFIG_CCI_KLOG
 	*powerpt = (POWERONOFFRECORD + system_flag);
 #endif	
 
-#else // #ifdef CONFIG_CCI_KLOG
-	if (cmd != NULL) {
-		if (!strncmp(cmd, "bootloader", 10)) {
-			__raw_writel(0x77665500, restart_reason);
-		} else if (!strncmp(cmd, "recovery", 8)) {
-			__raw_writel(0x77665502, restart_reason);
-		} else if (!strncmp(cmd, "oem-", 4)) {
-			unsigned long code;
-			code = simple_strtoul(cmd + 4, NULL, 16) & 0xff;
-			__raw_writel(0x6f656d00 | code, restart_reason);
-		} else {
-			__raw_writel(CONFIG_WARMBOOT_NORMAL, restart_reason);
-		}
-	}
-#endif // #ifdef CONFIG_CCI_KLOG
-
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	if (in_panic == 1)
+		set_kernel_crash_magic_number();
+reset:
+#endif /* CONFIG_LGE_CRASH_HANDLER */
 
 	__raw_writel(0, msm_tmr0_base + WDT0_EN);
 	if (!(machine_is_msm8x60_fusion() || machine_is_msm8x60_fusn_ffa())) {
@@ -491,6 +586,10 @@ void msm_restart(char mode, const char *cmd)
 
 	mdelay(10000);
 	printk(KERN_ERR "Restarting has failed\n");
+#ifndef CCI_KLOG_ALLOW_FORCE_PANIC
+reset3:
+	printk(KERN_NOTICE "Not allow another reset/panic/fatal after previous behavior \n");
+#endif
 }
 
 static int __init msm_pmic_restart_init(void)
@@ -507,6 +606,10 @@ static int __init msm_pmic_restart_init(void)
 		pr_warn("no pmic restart interrupt specified\n");
 	}
 
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	__raw_writel(0x6d63ad00, restart_reason);
+#endif
+
 	return 0;
 }
 
@@ -518,6 +621,10 @@ static int __init msm_restart_init(void)
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
 	dload_mode_addr = MSM_IMEM_BASE + DLOAD_MODE_ADDR;
 	warm_boot_addr	= MSM_IMEM_BASE + CONFIG_WARMBOOT_MAGIC_ADDR;
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	lge_error_handler_cookie_addr = MSM_IMEM_BASE +
+		LGE_ERROR_HANDLER_MAGIC_ADDR;
+#endif
 	set_dload_mode(download_mode);
 #endif
 	msm_tmr0_base = msm_timer_get_timer0_base();

@@ -1,5 +1,5 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
  * only version 2 as published by the Free Software Foundation.
@@ -733,15 +733,9 @@ static int __devinit pm8xxx_batt_alarm_probe(struct platform_device *pdev)
 	INIT_WORK(&chip->irq_work, pm8xxx_batt_alarm_isr_work);
 
 /* TODO: Is it best to trigger on both edges? Should this be configurable? */
-	#ifdef ORG_VER//LO
 	rc = request_irq(chip->irq, pm8xxx_batt_alarm_isr,
 		IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, cdata->irq_name,
 		chip);
-	#else
-	rc = request_irq(chip->irq, pm8xxx_batt_alarm_isr,
-		IRQF_TRIGGER_RISING , cdata->irq_name,
-		chip);
-	#endif 
 	if (rc < 0) {
 		pr_err("request_irq(%d) failed, rc=%d\n", chip->irq, rc);
 		goto err_cancel_work;

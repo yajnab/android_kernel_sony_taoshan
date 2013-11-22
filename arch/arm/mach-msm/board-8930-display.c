@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  * Copyright (C) 2012 Sony Mobile Communications AB.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@
 #include <mach/board.h>
 #include <mach/gpiomux.h>
 #include <mach/socinfo.h>
-#include <linux/ion.h>
+#include <linux/msm_ion.h>
 #include <mach/ion.h>
 #include <mach/msm_xo.h> //Taylor
 
@@ -41,7 +41,7 @@
 #define MSM_FB_SIZE roundup(MSM_FB_PRIM_BUF_SIZE, 4096)
 
 #ifdef CONFIG_FB_MSM_OVERLAY0_WRITEBACK
-// Taylopr, display driver porting 2012,0707
+//CCI Taylopr, display driver porting 2012,0707
 //#define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((1376 * 768 * 3 * 2), 4096)
 #define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((854 * 484 * 3 * 2), 4096)
 #else
@@ -57,7 +57,7 @@
 #define MDP_VSYNC_GPIO 0
 
 #define MIPI_CMD_NOVATEK_QHD_PANEL_NAME	"mipi_cmd_novatek_qhd"
-// Taylor--2012,0707
+//CCI Taylopr, display driver porting 2012,0707
 #define MIPI_CMD_SAMSUNG_FWVGA_PANEL_NAME	"mipi_cmd_samsung_fwvga"
 #define MIPI_CMD_CHIMEI_FWVGA_PANEL_NAME	"mipi_cmd_chimei_fwvga"
 #define MIPI_VIDEO_NOVATEK_QHD_PANEL_NAME	"mipi_video_novatek_qhd"
@@ -65,6 +65,7 @@
 #define MIPI_VIDEO_CHIMEI_WXGA_PANEL_NAME	"mipi_video_chimei_wxga"
 #define MIPI_VIDEO_SIMULATOR_VGA_PANEL_NAME	"mipi_video_simulator_vga"
 #define MIPI_CMD_RENESAS_FWVGA_PANEL_NAME	"mipi_cmd_renesas_fwvga"
+#define MIPI_VIDEO_NT_HD_PANEL_NAME		"mipi_video_nt35590_720p"
 #define HDMI_PANEL_NAME	"hdmi_msm"
 #define TVOUT_PANEL_NAME	"tvout_msm"
 extern int display_id;
@@ -77,11 +78,18 @@ static struct resource msm_fb_resources[] = {
 
 static int msm_fb_detect_panel(const char *name)
 {
-	if (!strncmp(name, MIPI_CMD_NOVATEK_QHD_PANEL_NAME,
+	if (machine_is_msm8930_evt()) {
+		if (!strncmp(name, MIPI_VIDEO_NT_HD_PANEL_NAME,
+			strnlen(MIPI_VIDEO_NT_HD_PANEL_NAME,
+				PANEL_NAME_MAX_LEN)))
+			return 0;
+	} else {
+		if (!strncmp(name, MIPI_CMD_NOVATEK_QHD_PANEL_NAME,
 			strnlen(MIPI_CMD_NOVATEK_QHD_PANEL_NAME,
 				PANEL_NAME_MAX_LEN)))
-		return 0;
-        // Taylor--2012,0707
+			return 0;
+	}
+ // Taylor--2012,0707
 	if (!display_id){
 		//SAMSUNG
 		if (!strncmp(name, MIPI_CMD_SAMSUNG_FWVGA_PANEL_NAME,
@@ -146,9 +154,8 @@ static struct platform_device msm_fb_device = {
 };
 
 static bool dsi_power_on;
-
-// Taylor--2012,0707
-//Taylor--20120622--B
+//CCI Taylopr, display driver porting 2012,0707
+//Display Driver--Taylor--20120622--B
 #define DISP_RST_GPIO 58
 #define DISP_LDO2V8_GPIO 12
 
@@ -166,6 +173,7 @@ static int mipi_dsi_samsung_panel_power(int on)
 	
 	cxo_clock = msm_xo_get(MSM_XO_TCXO_D0, id); //create a handle for D0 buffer of XO 
 
+
 	if (!dsi_power_on) {
 
 		printk(KERN_ERR "MIPI:: init %s: \n", __func__);
@@ -177,7 +185,7 @@ static int mipi_dsi_samsung_panel_power(int on)
 				PTR_ERR(reg_l23));
 			return -ENODEV;
 		}
-		
+
 		rc = regulator_set_voltage(reg_l23, 1800000, 1800000);
 		if (rc) {
 			pr_err("set_voltage l23 failed, rc=%d\n", rc);
@@ -206,13 +214,13 @@ static int mipi_dsi_samsung_panel_power(int on)
 			return -ENODEV;
 		}
 
-		
+
 		rc = gpio_tlmm_config(GPIO_CFG(DISP_LDO2V8_GPIO, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP,GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-		if (rc) 
+		if (rc)
 		{
 			printk("%s: gpio_tlmm_config  DISP_LDO2V8_GPIO failed(%d)\n",  __func__, rc);
 		}
-		
+
 		gpio_set_value(DISP_LDO2V8_GPIO, 1);
 
 		rc = gpio_request(DISP_RST_GPIO, "disp_rst_n");
@@ -224,7 +232,7 @@ static int mipi_dsi_samsung_panel_power(int on)
 		}
 
 		rc = gpio_tlmm_config(GPIO_CFG(DISP_RST_GPIO, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-		if (rc) 
+		if (rc)
 		{
 			printk("%s: gpio_tlmm_config  DISP_RST_GPIO failed(%d)\n",  __func__, rc);
 		}
@@ -260,13 +268,13 @@ static int mipi_dsi_samsung_panel_power(int on)
 
 
 		rc = gpio_tlmm_config(GPIO_CFG(DISP_LDO2V8_GPIO, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP,GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-		if (rc) 
+		if (rc)
 		{
 			printk("%s: gpio_tlmm_config  DISP_LDO2V8_GPIO failed(%d)\n",  __func__, rc);
 		}
-		
+
 		gpio_set_value(DISP_LDO2V8_GPIO, 1);
-		
+
 
 		mdelay(50);
 		gpio_set_value(DISP_RST_GPIO, 0);
@@ -282,14 +290,14 @@ static int mipi_dsi_samsung_panel_power(int on)
 		gpio_set_value(DISP_RST_GPIO, 0);
 
 		rc = gpio_tlmm_config(GPIO_CFG(DISP_LDO2V8_GPIO, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-		if (rc) 
+		if (rc)
 		{
 			printk("%s: gpio_tlmm_config  DISP_LDO2V8_GPIO failed(%d)\n",  __func__, rc);
 		}
-		
+
 		gpio_set_value(DISP_LDO2V8_GPIO, 0);
 		//Pull Low GPIO 12 for suspend<--
-		
+
 		mdelay(240);
 		rc = regulator_disable(reg_l23);
 		if (rc) {
@@ -315,7 +323,6 @@ static int mipi_dsi_samsung_panel_power(int on)
 	}
 	return 0;
 }
-
 
 static int mipi_dsi_chimei_panel_power(int on)
 {
@@ -480,16 +487,29 @@ static int mipi_dsi_chimei_panel_power(int on)
 	}
 	return 0;
 }
-#else //Taylor
+#else //Samsung FWVGA Display Driver--Taylor
+static struct mipi_dsi_panel_platform_data novatek_pdata;
+static void pm8917_gpio_set_backlight(int bl_level)
+{
+	int gpio24 = PM8917_GPIO_PM_TO_SYS(24);
+	if (bl_level > 0)
+		gpio_set_value_cansleep(gpio24, 1);
+	else
+		gpio_set_value_cansleep(gpio24, 0);
+}
+
 /*
  * TODO: When physical 8930/PM8038 hardware becomes
  * available, replace mipi_dsi_cdp_panel_power with
  * appropriate function.
  */
 #define DISP_RST_GPIO 58
+#define DISP_3D_2D_MODE 1
 static int mipi_dsi_cdp_panel_power(int on)
 {
 	static struct regulator *reg_l8, *reg_l23, *reg_l2;
+	/* Control backlight GPIO (24) directly when using PM8917 */
+	int gpio24 = PM8917_GPIO_PM_TO_SYS(24);
 	int rc;
 
 	pr_debug("%s: state : %d\n", __func__, on);
@@ -539,8 +559,44 @@ static int mipi_dsi_cdp_panel_power(int on)
 			gpio_free(DISP_RST_GPIO);
 			return -ENODEV;
 		}
+		if (machine_is_msm8930_evt()) {
+			rc = gpio_direction_output(DISP_RST_GPIO, 1);
+			if (rc) {
+				pr_err("gpio_direction_output failed for %d gpio rc=%d\n",
+						DISP_RST_GPIO, rc);
+				return -ENODEV;
+			}
+		}
+
+		if (!machine_is_msm8930_evt()) {
+			rc = gpio_request(DISP_3D_2D_MODE, "disp_3d_2d");
+			if (rc) {
+				pr_err("request gpio DISP_3D_2D_MODE failed, rc=%d\n",
+				 rc);
+				gpio_free(DISP_3D_2D_MODE);
+				return -ENODEV;
+			}
+			rc = gpio_direction_output(DISP_3D_2D_MODE, 0);
+			if (rc) {
+				pr_err("gpio_direction_output failed for %d gpio rc=%d\n",
+						DISP_3D_2D_MODE, rc);
+				return -ENODEV;
+			}
+		}
+		if (socinfo_get_pmic_model() == PMIC_MODEL_PM8917) {
+			rc = gpio_request(gpio24, "disp_bl");
+			if (rc) {
+				pr_err("request for gpio 24 failed, rc=%d\n",
+					rc);
+				return -ENODEV;
+			}
+			gpio_set_value_cansleep(gpio24, 0);
+			novatek_pdata.gpio_set_backlight =
+				pm8917_gpio_set_backlight;
+		}
 		dsi_power_on = true;
 	}
+
 	if (on) {
 		rc = regulator_set_optimum_mode(reg_l8, 100000);
 		if (rc < 0) {
@@ -578,6 +634,9 @@ static int mipi_dsi_cdp_panel_power(int on)
 		gpio_set_value(DISP_RST_GPIO, 0);
 		usleep(20);
 		gpio_set_value(DISP_RST_GPIO, 1);
+		if (!machine_is_msm8930_evt())
+			gpio_set_value(DISP_3D_2D_MODE, 1);
+		usleep(20);
 	} else {
 
 		gpio_set_value(DISP_RST_GPIO, 0);
@@ -612,14 +671,17 @@ static int mipi_dsi_cdp_panel_power(int on)
 			pr_err("set_optimum_mode l2 failed, rc=%d\n", rc);
 			return -EINVAL;
 		}
+		if (!machine_is_msm8930_evt())
+			gpio_set_value(DISP_3D_2D_MODE, 0);
+		usleep(20);
 	}
 	return 0;
 }
 #endif
-//Taylor--20120622--E
+//Display Driver--Taylor--20120622--E
 
-// Taylor--2012,0707
-//Taylor--20120622--B
+//CCI Taylopr, display driver porting 2012,0707
+//Display Driver--Taylor--20120622--B
 #ifdef CONFIG_FB_MSM_MIPI_SA77_CMD_FWVGA_PANEL
 static int mipi_dsi_panel_power(int on)
 {
@@ -637,7 +699,7 @@ static int mipi_dsi_panel_power(int on)
 	else
 		return mipi_dsi_chimei_panel_power(on);
 }
-#else //Taylor
+#else //Display Driver--Taylor
 static int mipi_dsi_panel_power(int on)
 {
 	pr_debug("%s: on=%d\n", __func__, on);
@@ -645,7 +707,7 @@ static int mipi_dsi_panel_power(int on)
 	return mipi_dsi_cdp_panel_power(on);
 }
 #endif
-//Taylor--20120622--E
+//Display Driver--Taylor--20120622--E
 
 static struct mipi_dsi_platform_data mipi_dsi_pdata = {
 	.vsync_gpio = MDP_VSYNC_GPIO,
@@ -778,10 +840,13 @@ static struct msm_bus_scale_pdata mdp_bus_scale_pdata = {
 static struct msm_panel_common_pdata mdp_pdata = {
 	.gpio = MDP_VSYNC_GPIO,
 	.mdp_max_clk = 200000000,
+	.mdp_max_bw = 2000000000,
+	.mdp_bw_ab_factor = 115,
+	.mdp_bw_ib_factor = 150,
 #ifdef CONFIG_MSM_BUS_SCALING
 	.mdp_bus_scale_table = &mdp_bus_scale_pdata,
 #endif
-	.mdp_rev = MDP_REV_42,
+	.mdp_rev = MDP_REV_43,
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 	.mem_hid = BIT(ION_CP_MM_HEAP_ID),
 #else
@@ -799,6 +864,9 @@ void __init msm8930_mdp_writeback(struct memtype_reserve* reserve_table)
 		mdp_pdata.ov0_wb_size;
 	reserve_table[mdp_pdata.mem_hid].size +=
 		mdp_pdata.ov1_wb_size;
+
+	pr_info("mem_map: mdp reserved with size 0x%lx in pool\n",
+			mdp_pdata.ov0_wb_size + mdp_pdata.ov1_wb_size);
 #endif
 }
 
@@ -817,23 +885,29 @@ static struct platform_device mipi_dsi_toshiba_panel_device = {
 	}
 };
 
-// Taylor--2012,0707
+static struct platform_device mipi_dsi_NT35590_panel_device = {
+	.name = "mipi_NT35590",
+	.id = 0,
+	/* todo: add any platform data */
+};
+
+//CCI Taylopr, display driver porting 2012,0707
 #ifdef CONFIG_FB_MSM_MIPI_NOVATEK_CMD_QHD_PT //Taylor--Display--B
 #define FPGA_3D_GPIO_CONFIG_ADDR	0xB5
 
 static struct mipi_dsi_phy_ctrl dsi_novatek_cmd_mode_phy_db = {
 
 /* DSI_BIT_CLK at 500MHz, 2 lane, RGB888 */
-	{0x0F, 0x0a, 0x04, 0x00, 0x20},	/* regulator */
+	{0x09, 0x08, 0x05, 0x00, 0x20},	/* regulator */
 	/* timing   */
 	{0xab, 0x8a, 0x18, 0x00, 0x92, 0x97, 0x1b, 0x8c,
 	0x0c, 0x03, 0x04, 0xa0},
 	{0x5f, 0x00, 0x00, 0x10},	/* phy ctrl */
 	{0xff, 0x00, 0x06, 0x00},	/* strength */
 	/* pll control */
-	{0x40, 0xf9, 0x30, 0xda, 0x00, 0x40, 0x03, 0x62,
+	{0x0, 0xe, 0x30, 0xda, 0x00, 0x10, 0x0f, 0x61,
 	0x40, 0x07, 0x03,
-	0x00, 0x1a, 0x00, 0x00, 0x02, 0x00, 0x20, 0x00, 0x01},
+	0x00, 0x1a, 0x00, 0x00, 0x02, 0x0e, 0x01, 0x00, 0x02},
 };
 
 static struct mipi_dsi_panel_platform_data novatek_pdata = {
@@ -853,8 +927,8 @@ static struct platform_device mipi_dsi_novatek_panel_device = {
 };
 #endif //Taylor--Display--B
 
-// Taylor--2012,0707
-//Taylor--20120622--B
+//CCI Taylopr, display driver porting 2012,0707
+//Display Driver--Taylor--20120622--B
 #ifdef CONFIG_FB_MSM_MIPI_SA77_CMD_FWVGA_PANEL
 //SAMSUNG
 static struct mipi_dsi_panel_platform_data samsung_pdata = {
@@ -881,7 +955,7 @@ static struct platform_device mipi_dsi_cmd_chimei_fwvga_panel_device = {
 	}
 };
 #endif
-//Taylor--20120622--E
+//Display Driver--Taylor--20120622--E
 
 #ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
 static struct resource hdmi_msm_resources[] = {
@@ -910,6 +984,7 @@ static int hdmi_core_power(int on, int show);
 static int hdmi_cec_power(int on);
 static int hdmi_gpio_config(int on);
 static int hdmi_panel_power(int on);
+static bool hdmi_platform_source(void);
 
 static struct msm_hdmi_platform_data hdmi_msm_data = {
 	.irq = HDMI_IRQ,
@@ -918,6 +993,7 @@ static struct msm_hdmi_platform_data hdmi_msm_data = {
 	.cec_power = hdmi_cec_power,
 	.panel_power = hdmi_panel_power,
 	.gpio_config = hdmi_gpio_config,
+	.source = hdmi_platform_source,
 };
 
 static struct platform_device hdmi_msm_device = {
@@ -927,6 +1003,8 @@ static struct platform_device hdmi_msm_device = {
 	.resource = hdmi_msm_resources,
 	.dev.platform_data = &hdmi_msm_data,
 };
+#else
+static int hdmi_panel_power(int on) { return 0; }
 #endif /* CONFIG_FB_MSM_HDMI_MSM_PANEL */
 
 #ifdef CONFIG_FB_MSM_WRITEBACK_MSM_PANEL
@@ -943,7 +1021,7 @@ static struct platform_device wfd_device = {
 #endif
 
 #ifdef CONFIG_MSM_BUS_SCALING
-#ifdef CONFIG_FB_MSM_DTV //Taylor--20120725--B
+#ifdef CONFIG_FB_MSM_DTV //Turn off HDMI feature--Taylor--20120725--B
 static struct msm_bus_vectors dtv_bus_init_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_MDP_PORT0,
@@ -993,21 +1071,8 @@ static struct lcdc_platform_data dtv_pdata = {
 	.bus_scale_table = &dtv_bus_scale_pdata,
 	.lcdc_power_save = hdmi_panel_power,
 };
-
-static int hdmi_panel_power(int on)
-{
-	int rc;
-
-	pr_debug("%s: HDMI Core: %s\n", __func__, (on ? "ON" : "OFF"));
-	rc = hdmi_core_power(on, 1);
-	if (rc)
-		rc = hdmi_cec_power(on);
-
-	pr_debug("%s: HDMI Core: %s Success\n", __func__, (on ? "ON" : "OFF"));
-	return rc;
-}
+#endif //Turn off HDMI feature--Taylor--20120725--E
 #endif
-#endif //Taylor--20120725--E
 
 #ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
 static int hdmi_enable_5v(int on)
@@ -1178,29 +1243,49 @@ static int hdmi_cec_power(int on)
 error:
 	return rc;
 }
+
+static int hdmi_panel_power(int on)
+{
+	int rc;
+
+	pr_debug("%s: HDMI Core: %s\n", __func__, (on ? "ON" : "OFF"));
+	rc = hdmi_core_power(on, 1);
+	if (rc)
+		rc = hdmi_cec_power(on);
+
+	pr_debug("%s: HDMI Core: %s Success\n", __func__, (on ? "ON" : "OFF"));
+	return rc;
+}
+
+static bool hdmi_platform_source(void)
+{
+	return cpu_is_msm8930ab() ? true : false ;
+}
+
 #endif /* CONFIG_FB_MSM_HDMI_MSM_PANEL */
 
 void __init msm8930_init_fb(void)
 {
 	platform_device_register(&msm_fb_device);
 
+	platform_device_register(&mipi_dsi_NT35590_panel_device);
 #ifdef CONFIG_FB_MSM_WRITEBACK_MSM_PANEL
 	platform_device_register(&wfd_panel_device);
 	platform_device_register(&wfd_device);
 #endif
 
-// Taylopr, display driver porting 2012,0707
+//CCI Taylor, display driver porting 2012,0707
 #ifdef CONFIG_FB_MSM_MIPI_NOVATEK_CMD_QHD_PT //Taylor--Display--B
 	platform_device_register(&mipi_dsi_novatek_panel_device);
 #endif//Taylor--Display--E
 
-// Taylor--2012,0707
-//Taylor--20120622--B
+//CCI Taylor, display driver porting 2012,0707
+//Display Driver--Taylor--20120622--B
 #ifdef CONFIG_FB_MSM_MIPI_SA77_CMD_FWVGA_PANEL
 	platform_device_register(&mipi_dsi_cmd_chimei_fwvga_panel_device);
 	platform_device_register(&mipi_dsi_cmd_samsung_fwvga_panel_device);
 #endif
-//Taylor--20120622--E
+//Display Driver--Taylor--20120622--E
 
 #ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
 	platform_device_register(&hdmi_msm_device);
@@ -1211,9 +1296,9 @@ void __init msm8930_init_fb(void)
 	msm_fb_register_device("mdp", &mdp_pdata);
 	msm_fb_register_device("mipi_dsi", &mipi_dsi_pdata);
 #ifdef CONFIG_MSM_BUS_SCALING
-#ifdef CONFIG_FB_MSM_DTV //Taylor--20120725--B
+#ifdef CONFIG_FB_MSM_DTV //Turn off HDMI feature--Taylor--20120725--B
 	msm_fb_register_device("dtv", &dtv_pdata);
-#endif //Taylor--20120725--E
+#endif //Turn off HDMI feature--Taylor--20120725--E
 #endif
 }
 

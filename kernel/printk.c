@@ -960,6 +960,9 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 
 
 	p = printk_buf;
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	store_crash_log(p);
+#endif
 
 	/* Read log level and handle special printk prefix */
 	plen = log_prefix(p, &current_log_level, &special);
@@ -1031,6 +1034,7 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 #else // #ifdef CONFIG_CCI_KLOG
 					emit_log_char(*tp);
 #endif // #ifdef CONFIG_CCI_KLOG
+
 				printed_len += tlen;
 			}
 

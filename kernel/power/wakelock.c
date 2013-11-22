@@ -86,6 +86,9 @@ static struct timespec last_dump_timestamp;
 #endif // #ifdef CONFIG_CCI_PM_WAKELOCK_LOG
 
 
+//export test//
+char export_wakeup_wake_lock[32];
+
 int get_expired_time(struct wake_lock *lock, ktime_t *expire_time)
 {
 	struct timespec ts;
@@ -543,8 +546,10 @@ static void wake_lock_internal(
 	BUG_ON(!(lock->flags & WAKE_LOCK_INITIALIZED));
 #ifdef CONFIG_WAKELOCK_STAT
 	if (type == WAKE_LOCK_SUSPEND && wait_for_wakeup) {
-		if (debug_mask & DEBUG_WAKEUP)
+		if (debug_mask & DEBUG_WAKEUP){
 			pr_info("wakeup wake lock: %s\n", lock->name);
+			snprintf(export_wakeup_wake_lock, 32, "%s", lock->name);
+		}
 		wait_for_wakeup = 0;
 		lock->stat.wakeup_count++;
 	}
@@ -772,5 +777,6 @@ static void  __exit wakelocks_exit(void)
 #endif
 }
 
+EXPORT_SYMBOL(export_wakeup_wake_lock);
 core_initcall(wakelocks_init);
 module_exit(wakelocks_exit);

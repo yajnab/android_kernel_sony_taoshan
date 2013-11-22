@@ -1,5 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,12 +28,12 @@
 #define STA 0
 #define DCE 1
 
-// AUD_MOD start
+// BAM_S
 #define SITAR_JACK_BUTTON_MASK (SND_JACK_BTN_0 | SND_JACK_BTN_1 | \
 				SND_JACK_BTN_2 ) /*| SND_JACK_BTN_3 | \
 				SND_JACK_BTN_4 | SND_JACK_BTN_5 | \
 				SND_JACK_BTN_6 | SND_JACK_BTN_7)*/
-// AUD_MOD end
+// BAM_E
 
 extern const u8 sitar_reg_readable[SITAR_CACHE_SIZE];
 extern const u32 sitar_1_reg_readable[SITAR_1_X_ONLY_REGISTERS];
@@ -178,6 +177,8 @@ struct sitar_mbhc_config {
 	unsigned int gpio;
 	unsigned int gpio_irq;
 	int gpio_level_insert;
+	/* swap_gnd_mic returns true if extern GND/MIC swap switch toggled */
+	bool (*swap_gnd_mic) (struct snd_soc_codec *);
 };
 
 extern int sitar_hs_detect(struct snd_soc_codec *codec,

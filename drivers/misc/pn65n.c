@@ -34,146 +34,39 @@
 #include <linux/gpio.h>
 #include <linux/miscdevice.h>
 #include <linux/spinlock.h>
+#include <linux/wakelock.h>
 
 #include <linux/nfc/pn65n.h>
 #include <linux/regulator/consumer.h>
 
 #define MAX_BUFFER_SIZE 512
 
+#define NXP_KR_READ_IRQ_MODIFY
+
+#ifdef NXP_KR_READ_IRQ_MODIFY
+static bool do_reading;
+static bool cancle_read;
+#endif
+
+#define NFC_DEBUG		0
+#define MAX_TRY_I2C_READ	10
+#define I2C_ADDR_READ_L		0x51
+#define I2C_ADDR_READ_H		0x57
+
+
 struct pn65n_dev    {
     wait_queue_head_t   read_wq;
     struct mutex        read_mutex;
     struct i2c_client   *client;
     struct miscdevice   pn65n_device;
+    struct wake_lock    nfc_wake_lock;
     unsigned int        ven_gpio;
     unsigned int        firm_gpio;
     unsigned int        irq_gpio;
-    bool                irq_enabled;
-    spinlock_t          irq_enabled_lock;
-    bool                power_on; //Robert, 20120808
-};
+    atomic_t            irq_enabled;
 
-static int pn65n_power(int on);
-
-static ssize_t pn65n_show_power_on(struct device *dev,
-                   struct device_attribute *attr, char *buf)
-{
-    struct pn65n_i2c_platform_data *platform_data = dev->platform_data;
-
-    printk("NFC -> pn65n_show_power_on\n");
-
-    #if 0  //B: Robert, 20121003
-    return sprintf(buf, "pn65n_show_power_on: VEN=%d, DL=%d\n",
-        gpio_get_value_cansleep(platform_data->ven_gpio), gpio_get_value(platform_data->firm_gpio));
-    #else
-    return snprintf(buf, MAX_BUFFER_SIZE, "pn65n_show_power_on: VEN=%d, DL=%d\n",
-        gpio_get_value_cansleep(platform_data->ven_gpio), gpio_get_value(platform_data->firm_gpio));
-    #endif //E: Robert, 20121003
-}
-
-static ssize_t pn65n_store_power_on(struct device *dev,
-                    struct device_attribute *attr,
-                    const char *buf, size_t count)
-{
-    int ret = 0;
-    struct pn65n_i2c_platform_data *platform_data = dev->platform_data;
-
-    printk("NFC -> pn65n_store_power_on\n");
-
-    /* power on */
-    ret = pn65n_power(1);
-    gpio_set_value(platform_data->firm_gpio, 0);
-    gpio_set_value_cansleep(platform_data->ven_gpio, 1);
-    printk("NFC -> VEN=%d, DL=%d\n",
-        gpio_get_value_cansleep(platform_data->ven_gpio),
-        gpio_get_value(platform_data->firm_gpio));
-
-    msleep(10);
-
-    return 0;
-}
-
-static DEVICE_ATTR(power_on, S_IWUSR | S_IRUGO,
-           pn65n_show_power_on, pn65n_store_power_on);
-
-static ssize_t pn65n_show_nfc_i2c(struct device *dev,
-                   struct device_attribute *attr, char *buf)
-{
-    struct i2c_client *client = to_i2c_client(dev);
-    struct pn65n_i2c_platform_data *platform_data = dev->platform_data;
-    int ret = 0;
-    int nfc_irq_value = 0;
-    char tmp[MAX_BUFFER_SIZE] = {'0'};
-    size_t count = MAX_BUFFER_SIZE;
-
-    printk("NFC -> pn65n_show_nfc_i2c\n");
-
-    nfc_irq_value = gpio_get_value(platform_data->irq_gpio);
-
-    /* Read data */
-    ret = i2c_master_recv(client, tmp, count);
-    printk("NFC -> ret=%d, IRQ=%d\n", ret, nfc_irq_value);
-
-    if (ret < 0) {
-        printk("NFC -> %s: i2c_master_recv returned %d\n", __func__, ret);
-
-        #if 0  //B: Robert, 20121003
-        return sprintf(buf, "IRQ[%d] i2c_master_recv returned %d\n", nfc_irq_value, ret);
-        #else
-        return snprintf(buf, MAX_BUFFER_SIZE, "IRQ[%d] i2c_master_recv returned %d\n", nfc_irq_value, ret);
-        #endif //E: Robert, 20121003
-    }
-    if (ret > count) {
-        printk("NFC -> %s: received too many bytes from i2c (%d)\n",
-            __func__, ret);
-        #if 0  //B: Robert, 20121003
-        return sprintf(buf, "[NFC]IRQ=%d received too many bytes from i2c (%d)\n", nfc_irq_value, ret);
-        #else
-        return snprintf(buf, MAX_BUFFER_SIZE, "[NFC]IRQ=%d received too many bytes from i2c (%d)\n", nfc_irq_value, ret);
-        #endif //E: Robert, 20121003
-
-    }
-
-    printk("NFC -> data=%s\n", tmp);
-    #if 0  //B: Robert, 20121003
-    return sprintf(buf, "data=%s\n", tmp);
-    #else
-    return snprintf(buf, MAX_BUFFER_SIZE, "data=%s\n", tmp);
-    #endif //E: Robert, 20121003
-
-}
-
-static ssize_t pn65n_store_nfc_i2c(struct device *dev,
-                    struct device_attribute *attr,
-                    const char *buf, size_t count)
-{
-    struct i2c_client *client = to_i2c_client(dev);
-    int ret = 0;
-
-    printk("NFC -> pn65n_store_nfc_i2c\n");
-
-    /* Write data */
-    ret = i2c_master_send(client, buf, count);
-    printk("NFC -> number of bytes written to I2C (%d)\n", ret);
-    if (ret != count) {
-        pr_err("%s : i2c_master_send returned %d\n", __func__, ret);
-        ret = -EIO;
-    }
-
-    return ret;
-}
-
-static DEVICE_ATTR(nfc_i2c, S_IWUSR | S_IRUGO,
-           pn65n_show_nfc_i2c, pn65n_store_nfc_i2c);
-
-static struct attribute *pn65n_attributes[] = {
-    &dev_attr_power_on.attr,
-    &dev_attr_nfc_i2c.attr,
-    NULL
-};
-
-static const struct attribute_group pn65n_attr_group = {
-    .attrs = pn65n_attributes,
+    
+    atomic_t            disable_in_suspend;   // If SIM card don't have NFC feature, we can disable the screen off card emulation
 };
 
 static void pn65n_gpio_init(struct pn65n_i2c_platform_data *platform_data)
@@ -275,155 +168,202 @@ static int pn65n_enable_firm(int enable, struct pn65n_dev *pn65n_dev_data)
     return 0;
 }
 
-static void pn65n_disable_irq(struct pn65n_dev *pn65n_dev_data)
-{
-    unsigned long flags;
-
-    spin_lock_irqsave(&pn65n_dev_data->irq_enabled_lock, flags);
-    if (pn65n_dev_data->irq_enabled) {
-        disable_irq_nosync(pn65n_dev_data->client->irq);
-        pn65n_dev_data->irq_enabled = false;
-    }
-    spin_unlock_irqrestore(&pn65n_dev_data->irq_enabled_lock, flags);
-}
-
 static irqreturn_t pn65n_dev_irq_handler(int irq, void *dev_id)
 {
-    struct pn65n_dev *pn65n_dev_data = dev_id;
+	struct pn65n_dev *pn65n_dev = dev_id;
 
-    pn65n_disable_irq(pn65n_dev_data);
+	if (!gpio_get_value(pn65n_dev->irq_gpio)) {
+#if NFC_DEBUG
+		pr_err("%s, irq_gpio = %d\n", __func__,
+		gpio_get_value(pn65n_dev->irq_gpio));
+#endif
+		return IRQ_HANDLED;
+	}
 
-    /* Wake up waiting readers */
-    wake_up(&pn65n_dev_data->read_wq);
+#ifdef NXP_KR_READ_IRQ_MODIFY
+	do_reading = true;
+#endif
+	/* Wake up waiting readers */
+	wake_up(&pn65n_dev->read_wq);
 
+#if NFC_DEBUG
+	pr_info("%s, IRQ_HANDLED\n", __func__);
+#endif
+	wake_lock_timeout(&pn65n_dev->nfc_wake_lock, 2 * HZ);
     return IRQ_HANDLED;
 }
 
 static ssize_t pn65n_dev_read(struct file *filp, char __user *buf,
         size_t count, loff_t *offset)
 {
-    struct pn65n_dev *pn65n_dev_data = filp->private_data;
+	struct pn65n_dev *pn65n_dev = filp->private_data;
     char tmp[MAX_BUFFER_SIZE];
-    int ret;
+	int ret = 0;
+	int readingWatchdog = 0;
 
-    //printk("NFC -> pn65n_dev_read()\n");
     if (count > MAX_BUFFER_SIZE)
         count = MAX_BUFFER_SIZE;
 
-    pr_debug("%s : reading %zu bytes.\n", __func__, count);
+#if NFC_DEBUG
+	dev_info(&pn65n_dev->client->dev, "%s : reading %zu bytes. irq=%s\n",
+		__func__, count,
+		gpio_get_value(pn65n_dev->irq_gpio) ? "1" : "0");
+	dev_info(&pn65n_dev->client->dev, "pn65n : + r\n");
+#endif
 
-    mutex_lock(&pn65n_dev_data->read_mutex);
+	mutex_lock(&pn65n_dev->read_mutex);
 
-    if (!gpio_get_value(pn65n_dev_data->irq_gpio)) {
+wait_irq:
+	if (!gpio_get_value(pn65n_dev->irq_gpio)) {
+#ifdef NXP_KR_READ_IRQ_MODIFY
+		do_reading = false;
+#endif
         if (filp->f_flags & O_NONBLOCK) {
+			dev_info(&pn65n_dev->client->dev, "%s : O_NONBLOCK\n",
+				 __func__);
             ret = -EAGAIN;
             goto fail;
         }
+#if NFC_DEBUG
+		dev_info(&pn65n_dev->client->dev,
+			"wait_event_interruptible : in\n");
+#endif
 
-        #if 0 //B: Robert, 20120813
-        pn65n_dev_data->irq_enabled = true;
-        enable_irq(pn65n_dev_data->client->irq);
-        ret = wait_event_interruptible(pn65n_dev_data->read_wq,
-                gpio_get_value(pn65n_dev_data->irq_gpio));
+#ifdef NXP_KR_READ_IRQ_MODIFY
+		ret = wait_event_interruptible(pn65n_dev->read_wq,
+			do_reading);
+#else
+		ret = wait_event_interruptible(pn65n_dev->read_wq,
+			gpio_get_value(pn65n_dev->irq_gpio));
+#endif
 
-        pn65n_disable_irq(pn65n_dev_data);
+#if NFC_DEBUG
+		dev_info(&pn65n_dev->client->dev,
+			"wait_event_interruptible : out\n");
+#endif
 
-        if (ret)
+#ifdef NXP_KR_READ_IRQ_MODIFY
+		if (cancle_read == true) {
+			cancle_read = false;
+			ret = -1;
             goto fail;
-
-        #else //
-
-        while (1) {
-            pn65n_dev_data->irq_enabled = true;
-            enable_irq(pn65n_dev_data->client->irq);
-            ret = wait_event_interruptible(
-                    pn65n_dev_data->read_wq,
-                    !pn65n_dev_data->irq_enabled);
-
-            pn65n_disable_irq(pn65n_dev_data);
+		}
+#endif
 
             if (ret)
                 goto fail;
+	}
 
-            if (gpio_get_value(pn65n_dev_data->irq_gpio))
-                break;
+	/* Read data */
+	ret = i2c_master_recv(pn65n_dev->client, tmp, count);
 
-            //pr_warning("%s: spurious interrupt detected\n", __func__);
-        }
-        #endif //E: Robert, 20120813
+	/* If bad frame(from 0x51 to 0x57) is received from pn65n,
+	* we need to read again after waiting that IRQ is down.
+	* if data is not ready, pn65n will send from 0x51 to 0x57. */
+	if ((I2C_ADDR_READ_L <= tmp[0] && tmp[0] <= I2C_ADDR_READ_H)
+		&& readingWatchdog < MAX_TRY_I2C_READ) {
+		pr_warn("%s: data is not ready yet.data = 0x%x, cnt=%d\n",
+			__func__, tmp[0], readingWatchdog);
+		usleep_range(2000, 2000); /* sleep 2ms to wait for IRQ */
+		readingWatchdog++;
+		goto wait_irq;
     }
 
-    /* Read data */
-    ret = i2c_master_recv(pn65n_dev_data->client, tmp, count);
-    mutex_unlock(&pn65n_dev_data->read_mutex);
-
-    /* pn544 seems to be slow in handling I2C read requests
-     * so add 1ms delay after recv operation */
-    udelay(1000); //Robert, 20120813
+	mutex_unlock(&pn65n_dev->read_mutex);
 
     if (ret < 0) {
-        pr_err("%s: i2c_master_recv returned %d\n", __func__, ret);
+		dev_err(&pn65n_dev->client->dev,
+			"%s: i2c_master_recv returned %d\n",
+				__func__, ret);
         return ret;
     }
     if (ret > count) {
-        pr_err("%s: received too many bytes from i2c (%d)\n",
+		dev_err(&pn65n_dev->client->dev,
+			"%s: received too many bytes from i2c (%d)\n",
             __func__, ret);
         return -EIO;
     }
+
     if (copy_to_user(buf, tmp, ret)) {
-        pr_warning("%s : failed to copy to user space\n", __func__);
+		dev_err(&pn65n_dev->client->dev,
+			"%s : failed to copy to user space\n",
+			__func__);
         return -EFAULT;
     }
     return ret;
 
 fail:
-    mutex_unlock(&pn65n_dev_data->read_mutex);
+	mutex_unlock(&pn65n_dev->read_mutex);
     return ret;
 }
 
 static ssize_t pn65n_dev_write(struct file *filp, const char __user *buf,
         size_t count, loff_t *offset)
 {
-    struct pn65n_dev  *pn65n_dev_data;
+	struct pn65n_dev *pn65n_dev;
     char tmp[MAX_BUFFER_SIZE];
-    int ret;
+	int ret = 0, retry = 2;
+#if NFC_DEBUG
+	int i = 0;
+#endif
 
-    //printk("NFC -> pn65n_dev_write()\n");
-    pn65n_dev_data = filp->private_data;
+	pn65n_dev = filp->private_data;
+
+#if NFC_DEBUG
+	dev_info(&pn65n_dev->client->dev, "pn65n : + w\n");
+	for (i = 0; i < count; i++)
+		dev_info(&pn65n_dev->client->dev, "buf[%d] = 0x%x\n",
+			i, buf[i]);
+#endif
 
     if (count > MAX_BUFFER_SIZE)
         count = MAX_BUFFER_SIZE;
 
     if (copy_from_user(tmp, buf, count)) {
-        pr_err("%s : failed to copy from user space\n", __func__);
+		dev_err(&pn65n_dev->client->dev,
+			"%s : failed to copy from user space\n", __func__);
         return -EFAULT;
     }
+#if NFC_DEBUG
+	dev_info(&pn65n_dev->client->dev, "%s : writing %zu bytes.\n", __func__,
+		count);
+#endif
+	/* Write data */
+	do {
+		retry--;
+		ret = i2c_master_send(pn65n_dev->client, tmp, count);
+		if (ret == count)
+			break;
+		usleep_range(6000, 10000); /* Retry, chip was in standby */
+#if NFC_DEBUG
+		dev_info(&pn65n_dev->client->dev, "retry = %d\n", retry);
+#endif
+	} while (retry);
 
-    pr_debug("%s : writing %zu bytes.\n", __func__, count);
-    /* Write data */
-    ret = i2c_master_send(pn65n_dev_data->client, tmp, count);
+#if NFC_DEBUG
+	dev_info(&pn65n_dev->client->dev, "pn65n : - w\n");
+#endif
+
     if (ret != count) {
-        pr_err("%s : i2c_master_send returned %d\n", __func__, ret);
+		dev_err(&pn65n_dev->client->dev,
+			"%s : i2c_master_send returned %d, %d\n",
+			__func__, ret, retry);
         ret = -EIO;
     }
-
-    /* pn544 seems to be slow in handling I2C write requests
-     * so add 1ms delay after I2C send oparation */
-    udelay(1000); //Robert, 20120813
 
     return ret;
 }
 
 static int pn65n_dev_open(struct inode *inode, struct file *filp)
 {
-    struct pn65n_dev *pn65n_dev_data = container_of(filp->private_data,
+	struct pn65n_dev *pn65n_dev = container_of(filp->private_data,
                         struct pn65n_dev,
                         pn65n_device);
 
-    filp->private_data = pn65n_dev_data;
+	filp->private_data = pn65n_dev;
     
-    printk("NFC -> pn65n_dev_open pn65n_dev_data[%p]\n", pn65n_dev_data);
-    pr_debug("%s : %d,%d\n", __func__, imajor(inode), iminor(inode));
+	dev_info(&pn65n_dev->client->dev, "%s : %d,%d\n", __func__,
+		imajor(inode), iminor(inode));
 
     return 0;
 }
@@ -434,44 +374,82 @@ static long pn65n_dev_ioctl(struct file *filp,
         /* PN65N:VEN <== NFC_EXT_EN pull-up by PM8921 GPIO44 
                 pn65n_enable_ven is "LOW" enable in DA85 EVT0
         */
-    struct pn65n_dev *pn65n_dev_data = filp->private_data;
+    struct pn65n_dev *pn65n_dev = filp->private_data;
 
     switch (cmd) {
     case PN544_SET_PWR:
         if (arg == 2) {
             printk("NFC -> pn65n_dev_ioctl: power on with firmware download (requires hw reset)\n");
             /* power on with firmware download (requires hw reset) */
-            pn65n_enable_ven(0, pn65n_dev_data);
-            pn65n_enable_firm(1, pn65n_dev_data);
+            pn65n_enable_ven(0, pn65n_dev);
+            pn65n_enable_firm(1, pn65n_dev);
             msleep(10);
-            pn65n_enable_ven(1, pn65n_dev_data);
+            pn65n_enable_ven(1, pn65n_dev);
             msleep(10);
-            pn65n_enable_ven(0, pn65n_dev_data);
+            pn65n_enable_ven(0, pn65n_dev);
             msleep(10);
+			if (atomic_read(&pn65n_dev->irq_enabled) == 0) {
+				atomic_set(&pn65n_dev->irq_enabled, 1);
+				enable_irq(pn65n_dev->client->irq);
+				enable_irq_wake(pn65n_dev->client->irq);
+			}
+			dev_info(&pn65n_dev->client->dev,
+				 "%s power on with firmware, irq=%d\n",
+				 __func__,
+				 atomic_read(&pn65n_dev->irq_enabled));
         } else if (arg == 1) {
-            printk("NFC -> pn65n_ioctl: power on\n");
             /* power on */
             pn65n_power(1);
             msleep(20);
-            pn65n_enable_firm(0, pn65n_dev_data);
-            pn65n_enable_ven(0, pn65n_dev_data);
-            pn65n_dev_data->power_on=1; //Robert, 20120808
+            pn65n_enable_firm(0, pn65n_dev);
+            pn65n_enable_ven(0, pn65n_dev);
             msleep(10);
+			if (atomic_read(&pn65n_dev->irq_enabled) == 0) {
+				atomic_set(&pn65n_dev->irq_enabled, 1);
+				enable_irq(pn65n_dev->client->irq);
+				enable_irq_wake(pn65n_dev->client->irq);
+			}
+			dev_info(&pn65n_dev->client->dev,
+				"%s power on, irq=%d\n", __func__,
+				atomic_read(&pn65n_dev->irq_enabled));
         } else  if (arg == 0) {
             printk("NFC -> pn65n_ioctl: power off\n");
             /* power off */
-            pn65n_enable_firm(0, pn65n_dev_data);
-            pn65n_enable_ven(1, pn65n_dev_data);
+			if (atomic_read(&pn65n_dev->irq_enabled) == 1) {
+				disable_irq_wake(pn65n_dev->client->irq);
+				disable_irq_nosync(pn65n_dev->client->irq);
+				atomic_set(&pn65n_dev->irq_enabled, 0);
+			}
+
+            pn65n_enable_firm(0, pn65n_dev);
+            pn65n_enable_ven(1, pn65n_dev);
             pn65n_power(0);
-            pn65n_dev_data->power_on=0; //Robert, 20120808
             msleep(10);
+
+#ifdef NXP_KR_READ_IRQ_MODIFY
+		} else if (arg == 3) {
+			pr_info("%s Read Cancle\n", __func__);
+			cancle_read = true;
+			do_reading = true;
+			wake_up(&pn65n_dev->read_wq);
+#endif
+		
+		} else if (arg == 0x10 ) { //disable card emulation in suspend
+			printk("pn65n_dev_ioctl: disable card emulation in suspend\n");
+			atomic_set(&pn65n_dev->disable_in_suspend, 1);
+		} else if (arg == 0x11 ) { //enable card emulation in suspend
+			printk("pn65n_dev_ioctl: enable card emulation in suspend\n");
+			atomic_set(&pn65n_dev->disable_in_suspend, 0);
+		
         } else {
-            pr_err("%s bad arg %u\n", __func__, (unsigned int)arg);
+			dev_err(&pn65n_dev->client->dev, "%s bad arg %lu\n",
+				__func__, arg);
             return -EINVAL;
         }
         break;
     default:
-        pr_err("%s bad ioctl %u\n", __func__, cmd);
+		dev_err(&pn65n_dev->client->dev, "%s bad ioctl %u\n", __func__,
+			cmd);
         return -EINVAL;
     }
 
@@ -487,22 +465,19 @@ static const struct file_operations pn65n_dev_fops = {
     .unlocked_ioctl = pn65n_dev_ioctl,
 };
 
+
 //-------------- Suspend ---------------//
 static int pn65n_suspend(struct i2c_client *client, pm_message_t mesg)
 {
     /* power off */
-    struct pn65n_i2c_platform_data *platform_data;
 
-    //B: Robert, 20120808
-    struct pn65n_dev *pn65n_dev_data; 
-    pn65n_dev_data = i2c_get_clientdata(client);
-    //E: Robert, 20120808
+    struct pn65n_dev *pn65n_dev = i2c_get_clientdata(client);
+    if( pn65n_dev == NULL ) return 0;
 
-    platform_data = client->dev.platform_data;
-    gpio_set_value_cansleep(platform_data->ven_gpio,1);
-
-    if( pn65n_dev_data->power_on == 0 ) //Robert, 20120808
-        gpio_tlmm_config(GPIO_CFG(platform_data->irq_gpio, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
+    if (atomic_read(&pn65n_dev->disable_in_suspend) == 1) {
+        printk("pn65n_suspend: disable_in_suspend\n");
+        gpio_set_value_cansleep(pn65n_dev->ven_gpio,1); //Drive PN65O:VEN to low
+    }
 
     return 0;
 }
@@ -510,21 +485,14 @@ static int pn65n_suspend(struct i2c_client *client, pm_message_t mesg)
 //-------------- Resume ---------------//
 static int pn65n_resume(struct i2c_client *client)
 {
-
     /* power on */
-    struct pn65n_i2c_platform_data *platform_data;  
+    struct pn65n_dev *pn65n_dev = i2c_get_clientdata(client);
+    if( pn65n_dev == NULL ) return 0;
 
-    //B: Robert, 20120808
-    struct pn65n_dev *pn65n_dev_data;
-    pn65n_dev_data = i2c_get_clientdata(client);
-    //E: Robert, 20120808
+    if (atomic_read(&pn65n_dev->disable_in_suspend) == 1) {
+        gpio_set_value_cansleep(pn65n_dev->ven_gpio,0); //Drive PN65O:VEN to high
+    }
 
-    platform_data = client->dev.platform_data;
-    gpio_set_value_cansleep(platform_data->ven_gpio,0);
-
-    if( pn65n_dev_data->power_on == 0 ) //Robert, 20120808
-        gpio_tlmm_config(GPIO_CFG(platform_data->irq_gpio, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-    
     return 0;
 }
 
@@ -534,20 +502,17 @@ static int pn65n_probe(struct i2c_client *client,
 {
     int ret;
     struct pn65n_i2c_platform_data *platform_data;
-    struct pn65n_dev *pn65n_dev_data;
+	struct pn65n_dev *pn65n_dev;
 
     platform_data = client->dev.platform_data;
 
     if (platform_data == NULL) {
-        pr_err("%s : nfc probe fail\n", __func__);
+		dev_err(&client->dev, "%s : nfc probe fail\n", __func__);
         return  -ENODEV;
     }
 
-    printk("NFC -> pn65n_probe++++\n");
-    printk("    irq_gpio[%d], ven_gpio[%d], firm_gpio[%d]\n", platform_data->irq_gpio, platform_data->ven_gpio, platform_data->firm_gpio);
-
     if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-        pr_err("%s : need I2C_FUNC_I2C\n", __func__);
+		dev_err(&client->dev, "%s : need I2C_FUNC_I2C\n", __func__);
         return  -ENODEV;
     }
 
@@ -563,64 +528,71 @@ static int pn65n_probe(struct i2c_client *client,
 
     pn65n_gpio_init(platform_data);
 
-    pn65n_dev_data = kzalloc(sizeof(struct pn65n_dev), GFP_KERNEL);
-    if (pn65n_dev_data == NULL) {
+    pn65n_dev = kzalloc(sizeof(*pn65n_dev), GFP_KERNEL);
+	if (pn65n_dev == NULL) {
         dev_err(&client->dev,
                 "failed to allocate memory for module data\n");
         ret = -ENOMEM;
         goto err_exit;
     }
 
-    pn65n_dev_data->irq_gpio = platform_data->irq_gpio;
-    pn65n_dev_data->ven_gpio  = platform_data->ven_gpio;
-    pn65n_dev_data->firm_gpio  = platform_data->firm_gpio;
-    pn65n_dev_data->client   = client;
+	dev_info(&client->dev, "%s : IRQ num %d\n", __func__, client->irq);
+
+	pn65n_dev->irq_gpio = platform_data->irq_gpio;
+	pn65n_dev->ven_gpio = platform_data->ven_gpio;
+	pn65n_dev->firm_gpio = platform_data->firm_gpio;
+	pn65n_dev->client = client;
 
     /* init mutex and queues */
-    init_waitqueue_head(&pn65n_dev_data->read_wq);
-    mutex_init(&pn65n_dev_data->read_mutex);
-    spin_lock_init(&pn65n_dev_data->irq_enabled_lock);
+	init_waitqueue_head(&pn65n_dev->read_wq);
+	mutex_init(&pn65n_dev->read_mutex);
 
-    pn65n_dev_data->pn65n_device.minor = MISC_DYNAMIC_MINOR;
-    pn65n_dev_data->pn65n_device.name = NFC_I2C_DEV_NAME;
-    pn65n_dev_data->pn65n_device.fops = &pn65n_dev_fops;
-    pn65n_dev_data->pn65n_device.parent = &client->dev;
+    pn65n_dev->pn65n_device.minor = MISC_DYNAMIC_MINOR;
+	pn65n_dev->pn65n_device.name = NFC_I2C_DEV_NAME;
+    pn65n_dev->pn65n_device.fops = &pn65n_dev_fops;
 
-    ret = misc_register(&pn65n_dev_data->pn65n_device);
+	ret = misc_register(&pn65n_dev->pn65n_device);
     if (ret) {
-        pr_err("%s : misc_register failed\n", __FILE__);
+		dev_err(&client->dev, "%s : misc_register failed. ret = %d\n",
+			__FILE__, ret);
         goto err_misc_register;
     }
+
+	i2c_set_clientdata(client, pn65n_dev);
+
+	wake_lock_init(&pn65n_dev->nfc_wake_lock,
+		WAKE_LOCK_SUSPEND, "nfc_wake_lock");
 
     /* request irq.  the irq is set whenever the chip has data available
      * for reading.  it is cleared when all data has been read.
      */
-    pr_info("%s : requesting IRQ %d\n", __func__, client->irq);
-    pn65n_dev_data->irq_enabled = true;
+	dev_info(&pn65n_dev->client->dev, "%s : requesting IRQ %d\n", __func__,
+		 client->irq);
+	ret = gpio_direction_input(pn65n_dev->irq_gpio);
+	if (ret) {
+		dev_err(&client->dev, "%s : gpio_direction_input failed. ret = %d\n",
+			__FILE__, ret);
+		goto err_request_irq_failed;
+	}
+
     ret = request_irq(client->irq, pn65n_dev_irq_handler,
-              IRQF_TRIGGER_HIGH, client->name, pn65n_dev_data);
+			  IRQF_TRIGGER_RISING, "pn65n", pn65n_dev);
     if (ret) {
-        dev_err(&client->dev, "request_irq failed\n");
+		dev_err(&client->dev, "request_irq failed. ret = %d\n", ret);
         goto err_request_irq_failed;
     }
-    pn65n_disable_irq(pn65n_dev_data);
-    i2c_set_clientdata(client, pn65n_dev_data);
-
-    /* register sysfs hooks */
-    ret = sysfs_create_group(&client->dev.kobj, &pn65n_attr_group);
-    if (ret)
-        goto err_request_sysfs_failed;
-    
-    printk("NFC -> pn65n_probe----\n");
+    disable_irq_nosync(pn65n_dev->client->irq);
+    atomic_set(&pn65n_dev->irq_enabled, 0);
+    atomic_set(&pn65n_dev->disable_in_suspend, 0); 
 
     return 0;
 
-err_request_sysfs_failed:
 err_request_irq_failed:
-    misc_deregister(&pn65n_dev_data->pn65n_device);
+	wake_lock_destroy(&pn65n_dev->nfc_wake_lock);
+	misc_deregister(&pn65n_dev->pn65n_device);
 err_misc_register:
-    mutex_destroy(&pn65n_dev_data->read_mutex);
-    kfree(pn65n_dev_data);
+	mutex_destroy(&pn65n_dev->read_mutex);
+	kfree(pn65n_dev);
 err_exit:
     gpio_free(platform_data->firm_gpio);
 err_firm:
@@ -632,21 +604,17 @@ err_ven:
 
 static int pn65n_remove(struct i2c_client *client)
 {
-    struct pn65n_dev *pn65n_dev_data;
+	struct pn65n_dev *pn65n_dev;
 
-    printk("NFC -> pn65n_remove\n");
-
-    pn65n_dev_data = i2c_get_clientdata(client);
-    free_irq(client->irq, pn65n_dev_data);
-    misc_deregister(&pn65n_dev_data->pn65n_device);
-    mutex_destroy(&pn65n_dev_data->read_mutex);
-    gpio_free(pn65n_dev_data->irq_gpio);
-    gpio_free(pn65n_dev_data->ven_gpio);
-    gpio_free(pn65n_dev_data->firm_gpio);
-
-    /* remove sysfs hooks */
-    sysfs_remove_group(&client->dev.kobj, &pn65n_attr_group);
-    kfree(pn65n_dev_data);
+	pn65n_dev = i2c_get_clientdata(client);
+	wake_lock_destroy(&pn65n_dev->nfc_wake_lock);
+	free_irq(client->irq, pn65n_dev);
+	misc_deregister(&pn65n_dev->pn65n_device);
+	mutex_destroy(&pn65n_dev->read_mutex);
+	gpio_free(pn65n_dev->irq_gpio);
+	gpio_free(pn65n_dev->ven_gpio);
+	gpio_free(pn65n_dev->firm_gpio);
+	kfree(pn65n_dev);
 
     return 0;
 }
@@ -660,8 +628,12 @@ static struct i2c_driver pn65n_driver = {
     .id_table   = pn65n_id,
     .probe      = pn65n_probe,
     .remove     = pn65n_remove,
+
+
     .suspend    = pn65n_suspend,
     .resume     = pn65n_resume,
+
+
     .driver     = {
         .owner  = THIS_MODULE,
         .name   = NFC_I2C_DEV_NAME,
@@ -674,14 +646,14 @@ static struct i2c_driver pn65n_driver = {
 
 static int __init pn65n_dev_init(void)
 {
-    printk("NFC -> Loading pn65n driver\n");
+	pr_info("Loading pn65n driver\n");
     return i2c_add_driver(&pn65n_driver);
 }
 module_init(pn65n_dev_init);
 
 static void __exit pn65n_dev_exit(void)
 {
-    printk("NFC -> Unloading pn65n driver\n");
+	pr_info("Unloading pn65n driver\n");
     i2c_del_driver(&pn65n_driver);
 }
 module_exit(pn65n_dev_exit);

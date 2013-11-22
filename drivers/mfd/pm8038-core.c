@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
  * only version 2 as published by the Free Software Foundation.
@@ -33,6 +33,11 @@
 #define REG_RTC_BASE		0x11D
 #define REG_IRQ_BASE            0x1BB
 
+#define REG_BATT_ALARM_THRESH	0x023
+#define REG_BATT_ALARM_CTRL1	0x024
+#define REG_BATT_ALARM_CTRL2	0x021
+#define REG_BATT_ALARM_PWM_CTRL	0x020
+
 #define REG_SPK_BASE		0x253
 #define REG_SPK_REGISTERS	6
 
@@ -52,13 +57,6 @@
 	.end	= _irq, \
 	.flags	= IORESOURCE_IRQ, \
 }
-
-//S:LO
-#define REG_BATT_ALARM_THRESH	0x023
-#define REG_BATT_ALARM_CTRL1	0x024
-#define REG_BATT_ALARM_CTRL2	0x021
-#define REG_BATT_ALARM_PWM_CTRL	0x020
-//E:LO
 
 struct pm8038 {
 	struct device					*dev;
@@ -349,9 +347,8 @@ static struct mfd_cell thermal_alarm_cell __devinitdata = {
 	.pdata_size	= sizeof(struct pm8xxx_tm_core_data),
 };
 
-//S:LO
 static const struct resource batt_alarm_cell_resources[] __devinitconst = {
-	SINGLE_IRQ_RESOURCE("pm8921_batt_alarm_irq", PM8921_BATT_ALARM_IRQ),
+	SINGLE_IRQ_RESOURCE("pm8921_batt_alarm_irq", PM8038_BATT_ALARM_IRQ),
 };
 
 static struct pm8xxx_batt_alarm_core_data batt_alarm_cdata = {
@@ -370,7 +367,6 @@ static struct mfd_cell batt_alarm_cell __devinitdata = {
 	.platform_data	= &batt_alarm_cdata,
 	.pdata_size	= sizeof(struct pm8xxx_batt_alarm_core_data),
 };
-//E:LO
 
 static const struct resource ccadc_cell_resources[] __devinitconst = {
 	SINGLE_IRQ_RESOURCE("PM8921_BMS_CCADC_EOC", PM8921_BMS_CCADC_EOC),
@@ -381,6 +377,11 @@ static struct mfd_cell ccadc_cell __devinitdata = {
 	.id		= -1,
 	.resources	= ccadc_cell_resources,
 	.num_resources	= ARRAY_SIZE(ccadc_cell_resources),
+};
+
+static struct mfd_cell vibrator_cell __devinitdata = {
+	.name           = PM8XXX_VIBRATOR_DEV_NAME,
+	.id             = -1,
 };
 
 static struct pm8xxx_vreg regulator_data[] = {
@@ -594,7 +595,7 @@ pm8038_add_subdevices(const struct pm8038_platform_data *pdata,
 
        
        if (pdata->vib_pdata) {
-  		 vib_cell.platform_data = pdata->vib_pdata;
+ 		 vib_cell.platform_data = pdata->vib_pdata;
 		 vib_cell.pdata_size =
 			sizeof(struct pm8xxx_vibrator_platform_data);
                 ret = mfd_add_devices(pmic->dev, 0, &vib_cell, 1, NULL, irq_base);
@@ -603,7 +604,7 @@ pm8038_add_subdevices(const struct pm8038_platform_data *pdata,
                       goto bail;
                 }
        }
-
+       
 	ret = mfd_add_devices(pmic->dev, 0, &pwm_cell, 1, NULL, 0);
 	if (ret) {
 		pr_err("Failed to add pwm subdevice ret=%d\n", ret);
@@ -627,6 +628,17 @@ pm8038_add_subdevices(const struct pm8038_platform_data *pdata,
 		ret = mfd_add_devices(pmic->dev, 0, &leds_cell, 1, NULL, 0);
 		if (ret) {
 			pr_err("Failed to add leds subdevice ret=%d\n", ret);
+			goto bail;
+		}
+	}
+
+	if (pdata->vibrator_pdata) {
+		vibrator_cell.platform_data = pdata->vibrator_pdata;
+		vibrator_cell.pdata_size =
+			sizeof(struct pm8xxx_vibrator_platform_data);
+		ret = mfd_add_devices(pmic->dev, 0, &vibrator_cell, 1, NULL, 0);
+		if (ret) {
+			pr_err("Failed to add vibrator ret=%d\n", ret);
 			goto bail;
 		}
 	}
@@ -709,16 +721,16 @@ pm8038_add_subdevices(const struct pm8038_platform_data *pdata,
 		goto bail;
 	}
 
-	//S:LO	
 	ret = mfd_add_devices(pmic->dev, 0, &batt_alarm_cell, 1, NULL,
-					irq_base);
+				irq_base);
 	if (ret) {
-		printk("%s - Failed to add batt_alarm subdevice ret=%d\n", __func__,ret);
+		pr_err("Failed to add battery alarm subdevice ret=%d\n", ret);
 		goto bail;
 	}
-	//E:LO
 
 	if (pdata->ccadc_pdata) {
+		pdata->ccadc_pdata->ccadc_cdata.batt_temp_channel
+						= CHANNEL_BATT_THERM;
 		ccadc_cell.platform_data = pdata->ccadc_pdata;
 		ccadc_cell.pdata_size =
 				sizeof(struct pm8xxx_ccadc_platform_data);

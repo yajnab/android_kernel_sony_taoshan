@@ -1,5 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -34,11 +33,6 @@
 #include "modem_notifier.h"
 #include "ramdump.h"
 
-extern long system_flag;
-#ifdef CONFIG_CCI_KLOG
-extern long* powerpt;
-#endif
-
 
 #ifdef CONFIG_CCI_KLOG
 #include <linux/cciklog.h>
@@ -47,9 +41,9 @@ extern long* powerpt;
 
 static int crash_shutdown;
 
+static struct subsys_device *modem_8960_dev;
+
 #define MAX_SSR_REASON_LEN 81U
-#define Q6_FW_WDOG_ENABLE		0x08882024
-#define Q6_SW_WDOG_ENABLE		0x08982024
 
 static void log_modem_sfr(void)
 {
@@ -86,36 +80,8 @@ static void log_modem_sfr(void)
 static void restart_modem(void)
 {
 	log_modem_sfr();
-	subsystem_restart("modem");
+	subsystem_restart_dev(modem_8960_dev);
 }
-
-static void modem_wdog_check(struct work_struct *work)
-{
-	void __iomem *q6_sw_wdog_addr;
-	u32 regval;
-
-	q6_sw_wdog_addr = ioremap_nocache(Q6_SW_WDOG_ENABLE, 4);
-	if (!q6_sw_wdog_addr)
-
-	{
-	    if((inactive == system_flag) || (normalreboot == system_flag) || (adloadmode == system_flag) ||(poweroff == system_flag))
-		    system_flag = q6fatal;
-#ifdef CONFIG_CCI_KLOG			
-	    *powerpt = (POWERONOFFRECORD + system_flag);
-#endif		
-		panic("Unable to check modem watchdog status.\n");
-	}
-
-	regval = readl_relaxed(q6_sw_wdog_addr);
-	if (!regval) {
-		pr_err("modem-8960: Modem watchdog wasn't activated!. Restarting the modem now.\n");
-		restart_modem();
-	}
-
-	iounmap(q6_sw_wdog_addr);
-}
-
-static DECLARE_DELAYED_WORK(modem_wdog_check_work, modem_wdog_check);
 
 static void smsm_state_cb(void *data, uint32_t old_state, uint32_t new_state)
 {
@@ -129,16 +95,13 @@ static void smsm_state_cb(void *data, uint32_t old_state, uint32_t new_state)
 	}
 }
 
-static int modem_shutdown(const struct subsys_data *subsys)
+#define Q6_FW_WDOG_ENABLE		0x08882024
+#define Q6_SW_WDOG_ENABLE		0x08982024
+
+static int modem_shutdown(const struct subsys_desc *subsys)
 {
 	void __iomem *q6_fw_wdog_addr;
 	void __iomem *q6_sw_wdog_addr;
-
-	/*
-	 * Cancel any pending wdog_check work items, since we're shutting
-	 * down anyway.
-	 */
-	cancel_delayed_work(&modem_wdog_check_work);
 
 	/*
 	 * Disable the modem watchdog since it keeps running even after the
@@ -170,18 +133,16 @@ static int modem_shutdown(const struct subsys_data *subsys)
 
 #define MODEM_WDOG_CHECK_TIMEOUT_MS 10000
 
-static int modem_powerup(const struct subsys_data *subsys)
+static int modem_powerup(const struct subsys_desc *subsys)
 {
 	pil_force_boot("modem_fw");
 	pil_force_boot("modem");
 	enable_irq(Q6FW_WDOG_EXPIRED_IRQ);
 	enable_irq(Q6SW_WDOG_EXPIRED_IRQ);
-	schedule_delayed_work(&modem_wdog_check_work,
-				msecs_to_jiffies(MODEM_WDOG_CHECK_TIMEOUT_MS));
 	return 0;
 }
 
-void modem_crash_shutdown(const struct subsys_data *subsys)
+void modem_crash_shutdown(const struct subsys_desc *subsys)
 {
 	crash_shutdown = 1;
 	smsm_reset_modem(SMSM_RESET);
@@ -204,8 +165,7 @@ static void *modemfw_ramdump_dev;
 static void *modemsw_ramdump_dev;
 static void *smem_ramdump_dev;
 
-static int modem_ramdump(int enable,
-				const struct subsys_data *crashed_subsys)
+static int modem_ramdump(int enable, const struct subsys_desc *crashed_subsys)
 {
 	int ret = 0;
 
@@ -262,7 +222,7 @@ static irqreturn_t modem_wdog_bite_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static struct subsys_data modem_8960 = {
+static struct subsys_desc modem_8960 = {
 	.name = "modem",
 	.shutdown = modem_shutdown,
 	.powerup = modem_powerup,
@@ -272,13 +232,16 @@ static struct subsys_data modem_8960 = {
 
 static int modem_subsystem_restart_init(void)
 {
-	return ssr_register_subsystem(&modem_8960);
+	modem_8960_dev = subsys_register(&modem_8960);
+	if (IS_ERR(modem_8960_dev))
+		return PTR_ERR(modem_8960_dev);
+	return 0;
 }
 
 static int modem_debug_set(void *data, u64 val)
 {
 	if (val == 1)
-		subsystem_restart("modem");
+		subsystem_restart_dev(modem_8960_dev);
 
 	return 0;
 }
@@ -309,8 +272,7 @@ static int __init modem_8960_init(void)
 {
 	int ret;
 
-	if (!cpu_is_msm8960() && !cpu_is_msm8930() && !cpu_is_msm8930aa() &&
-	    !cpu_is_msm9615() && !cpu_is_msm8627())
+	if (soc_class_is_apq8064())
 		return -ENODEV;
 
 	ret = smsm_state_cb_register(SMSM_MODEM_STATE, SMSM_RESET,

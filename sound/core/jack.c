@@ -25,7 +25,7 @@
 #include <linux/module.h>
 #include <sound/jack.h>
 #include <sound/core.h>
-#include <linux/switch.h>  // AUD_MOD
+#include <linux/switch.h>  // BAM_S C 130530 [Mig:]
 
 static int jack_switch_types[] = {
 	SW_HEADPHONE_INSERT,
@@ -39,7 +39,7 @@ static int jack_switch_types[] = {
 	SW_UNSUPPORT_INSERT,
 };
 
-// AUD_MOD start
+// BAM_S C 130530 [Mig:]
 static ssize_t simple_remote_print_name(struct switch_dev *swdev, char *buf)
 {
 	//struct simple_remote_driver *jack =
@@ -65,7 +65,7 @@ static ssize_t simple_remote_print_name(struct switch_dev *swdev, char *buf)
 	}
 	return -EINVAL;
 }
-// AUD_MOD end
+// BAM_E C 130530
 
 static int snd_jack_dev_free(struct snd_device *device)
 {
@@ -81,13 +81,13 @@ static int snd_jack_dev_free(struct snd_device *device)
 	else
 		input_free_device(jack->input_dev);
 
-// AUD_MOD start
+// BAM_S C 130530 [Mig:]
 	if (jack->registered)
 		input_unregister_device(jack->indev_appkey);
 	else
 		input_free_device(jack->indev_appkey);
 	switch_dev_unregister(&jack->swdev);	// SoMC Uevent Start
-// end
+// BAM_E C 130530
 
 	kfree(jack->id);
 	kfree(jack);
@@ -101,7 +101,7 @@ static int snd_jack_dev_register(struct snd_device *device)
 	struct snd_card *card = device->card;
 	int err, i;
 
-// AUD_MOD start
+// BAM_S C 130530 [Mig:]
 	//if( !strcmp(jack->id, "Headset Jack"))
 		
 	if( !strcmp(jack->id, "Button Jack"))
@@ -129,7 +129,7 @@ static int snd_jack_dev_register(struct snd_device *device)
 	err = input_register_device(jack->indev_appkey);
 	if (err != 0)
 		return err;
-// AUD_MOD end
+// BAM_E C 130530
 
 	snprintf(jack->name, sizeof(jack->name), "%s %s",
 		 card->shortname, jack->id);
@@ -189,7 +189,7 @@ int snd_jack_new(struct snd_card *card, const char *id, int type,
 
 	jack->id = kstrdup(id, GFP_KERNEL);
 
-// AUD_MOD start
+// BAM_S C 130530 [Mig:]
 	if( !strcmp(jack->id, "Headset Jack"))
 	{
 		printk("Headset Jack swdev register\n");
@@ -227,7 +227,7 @@ int snd_jack_new(struct snd_card *card, const char *id, int type,
 		if (type & (1 << i))
 			input_set_capability(jack->indev_appkey, EV_SW,
 						 jack_switch_types[i]);
-// AUD_MOD end
+// BAM_S C 130530
 
 	jack->input_dev = input_allocate_device();
 	if (jack->input_dev == NULL) {
@@ -253,7 +253,7 @@ int snd_jack_new(struct snd_card *card, const char *id, int type,
 	return 0;
 
 fail_input:
-	input_free_device(jack->indev_appkey);  // AUD_MOD
+	input_free_device(jack->indev_appkey);  // BAM_S C 130530 [Mig:]
 	input_free_device(jack->input_dev);
 	kfree(jack->id);
 	kfree(jack);
@@ -347,33 +347,33 @@ void snd_jack_report(struct snd_jack *jack, int status)
 
 	input_sync(jack->input_dev);
 
-	// AUD_MOD start
+	// BAM_S C 130530 [Mig:]
 	if( !strcmp(jack->id, "Headset Jack"))
 	{
 		if( status )
-			{
+		{
 			switch ( status )
-				{
+			{
 				case SND_JACK_HEADPHONE:
-							switch_set_state(&jack->swdev, DEVICE_HEADPHONE);
-							break;
+					switch_set_state(&jack->swdev, DEVICE_HEADPHONE);
+					break;
 				case SND_JACK_HEADSET:
-							switch_set_state(&jack->swdev, DEVICE_HEADSET);
-							break;
+					switch_set_state(&jack->swdev, DEVICE_HEADSET);
+					break;
 				case SND_JACK_UNSUPPORTED:
-							switch_set_state(&jack->swdev, DEVICE_UNSUPPORTED);
-							break;
-						default:
-							switch_set_state(&jack->swdev, DEVICE_UNKNOWN);
-							break;
-					}
-				}
-				else
-				{
-					switch_set_state(&jack->swdev, NO_DEVICE);
-				}
+					switch_set_state(&jack->swdev, DEVICE_UNSUPPORTED);
+					break;
+				default:
+					switch_set_state(&jack->swdev, DEVICE_UNKNOWN);
+					break;
 			}
-	// AUD_MOD end	
+		}
+		else
+		{
+			switch_set_state(&jack->swdev, NO_DEVICE);
+		}
+	}
+	// BAM_E C 130530
 }
 EXPORT_SYMBOL(snd_jack_report);
 

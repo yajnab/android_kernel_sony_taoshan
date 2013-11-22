@@ -1,5 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2012 Sony Mobile Communications AB.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -58,20 +57,16 @@ void msm_camio_bus_scale_cfg(struct msm_bus_scale_pdata *cam_bus_scale_table,
 		break;
 	case S_PREVIEW:
 		if (bus_perf_client) {
-//S JackBB 2012/12/3 [Q111M]
 			rc = msm_bus_scale_client_update_request(
-				bus_perf_client, 4);
-//E JackBB 2012/12/3 [Q111M]
+				bus_perf_client, 1);
 			CDBG("%s: S_PREVIEW rc = %d\n", __func__, rc);
 		} else
 			CDBG("%s: Bus Client NOT Registered!!!\n", __func__);
 		break;
 	case S_VIDEO:
 		if (bus_perf_client) {
-//S JackBB 2012/12/3 [Q111M]
 			rc = msm_bus_scale_client_update_request(
-				bus_perf_client, 4);
-//E JackBB 2012/12/3 [Q111M]
+				bus_perf_client, 2);
 			CDBG("%s: S_VIDEO rc = %d\n", __func__, rc);
 		} else
 			CDBG("%s: Bus Client NOT Registered!!!\n", __func__);
@@ -89,6 +84,30 @@ void msm_camio_bus_scale_cfg(struct msm_bus_scale_pdata *cam_bus_scale_table,
 			rc = msm_bus_scale_client_update_request(
 				bus_perf_client, 4);
 			CDBG("%s: S_ZSL rc = %d\n", __func__, rc);
+		} else
+			CDBG("%s: Bus Client NOT Registered!!!\n", __func__);
+		break;
+	case S_LIVESHOT:
+		if (bus_perf_client) {
+			rc = msm_bus_scale_client_update_request(
+				bus_perf_client, 5);
+			CDBG("%s: S_LIVESHOT rc = %d\n", __func__, rc);
+		} else
+			CDBG("%s: Bus Client NOT Registered!!!\n", __func__);
+		break;
+	case S_DUAL:
+		if (bus_perf_client) {
+			rc = msm_bus_scale_client_update_request(
+				bus_perf_client, 6);
+			CDBG("%s: S_DUAL rc = %d\n", __func__, rc);
+		} else
+			CDBG("%s: Bus Client NOT Registered!!!\n", __func__);
+		break;
+	case S_LOW_POWER:
+		if (bus_perf_client) {
+			rc = msm_bus_scale_client_update_request(
+				bus_perf_client, 7);
+			CDBG("%s: S_LOW_POWER rc = %d\n", __func__, rc);
 		} else
 			CDBG("%s: Bus Client NOT Registered!!!\n", __func__);
 		break;

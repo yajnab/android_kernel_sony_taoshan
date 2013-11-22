@@ -27,6 +27,7 @@
 #include "mipi_dsi.h"
 #include "mipi_chimei.h"
 #include "mdp4.h"
+#define ESD 0
 
 
 static struct mipi_dsi_panel_platform_data *mipi_chimei_pdata;
@@ -169,8 +170,9 @@ static struct dsi_cmd_desc chimei_display_off_cmds[] = {
 		sizeof(sleep_in), sleep_in},
 };
 struct dcs_cmd_req cmdreq_chimei;
-extern int cci_fb_UpdateDone;//Taylor--20121105
+//extern int cci_fb_UpdateDone;//Taylor--20121105
 //Taylor-B
+#if ESD
 static u32 power_state;
 static int lcd_on = 0;
 static int read_val = 0;
@@ -180,21 +182,23 @@ struct platform_device *mine_pdev;
 struct msm_fb_data_type *mine_mfd;
 static int chimei_recover = 0;
 #define DISP_RST_GPIO 58
-extern struct platform_device *mdp_dev_backup;
+//extern struct platform_device *mdp_dev_backup;
 //extern int mipi_timeout;
 static struct wake_lock esd_wakelock;
 static int esd_lock;
 static int mipi_chimei_lcd_on(struct platform_device *pdev);
 static int bl_backup;
 extern struct fb_var_screeninfo *var_backup;
+#endif
 //Taylor-E
 
 //static char manufacture_id[2] = {0x04, 0x00}; /* DTYPE_DCS_READ */
 
 //Taylor--B
-static struct work_struct esd_work; 
+//static struct work_struct esd_work; 
 DEFINE_LED_TRIGGER(bkl_led_trigger);
 
+#if 0
 static void check_state_work(struct work_struct *work)
 {
         char buf[64];
@@ -206,7 +210,9 @@ static void check_state_work(struct work_struct *work)
         kobject_uevent_env(&pdev_backup->dev.kobj, KOBJ_CHANGE, envp);
 	printk("Taylor: kobject name=%s\n",(&pdev_backup->dev.kobj)->name);
 }
+#endif
 
+#if ESD
 static void mipi_chimei_reset(void)
 {
 	int rc;
@@ -215,6 +221,26 @@ static void mipi_chimei_reset(void)
 	led_trigger_event(bkl_led_trigger, 0);
 	printk("%s: ESD Recover start\n",__func__);
 
+#if 1
+	printk("%s: Wrong driver IC's register , start to recover\n",__func__);
+	rc = gpio_tlmm_config(GPIO_CFG(DISP_RST_GPIO, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,GPIO_CFG_2MA), GPIO_CFG_ENABLE);
+	if (rc) 
+	{
+		printk("%s: gpio_tlmm_config  DISP_RST_GPIO failed(%d)\n",  __func__, rc);
+		return ;
+	}
+	gpio_set_value(DISP_RST_GPIO, 0);
+	mdelay(1);
+
+	gpio_set_value(DISP_RST_GPIO, 1);
+	mdelay(1);
+	gpio_set_value(DISP_RST_GPIO, 0);
+	mdelay(50);
+	gpio_set_value(DISP_RST_GPIO, 1);
+	mdelay(5);	
+	mipi_chimei_lcd_on(mine_pdev);
+	printk("%s: Wrong driver IC's register , recover FINISH\n",__func__);	
+#else
 	//if (mipi_timeout){
 	if (read_mipi_state()){
 		wake_lock(&esd_wakelock);//////lock until unlock
@@ -244,7 +270,7 @@ static void mipi_chimei_reset(void)
 		mipi_chimei_lcd_on(mine_pdev);
 		printk("%s: Wrong driver IC's register , recover FINISH\n",__func__);	
 	}
-	
+#endif
 }
 
 static void mipi_chimei_power_mode_cb(u32 data)
@@ -352,6 +378,7 @@ static void power_state_detect_work(struct work_struct *work)
 	}
 #endif
 }
+#endif
 //Taylor--E
 
 //static struct dsi_cmd_desc chimei_manufacture_id_cmd = {
@@ -379,7 +406,9 @@ static int mipi_chimei_lcd_on(struct platform_device *pdev)
 	struct msm_fb_data_type *mfd;
 	struct mipi_panel_info *mipi;
 	struct msm_panel_info *pinfo;
+#if ESD
 	struct fb_info *fbi;
+#endif
 
 	mfd = platform_get_drvdata(pdev);
 	if (!mfd)
@@ -390,9 +419,11 @@ static int mipi_chimei_lcd_on(struct platform_device *pdev)
 	pinfo = &mfd->panel_info;
 
 	mipi  = &mfd->panel_info.mipi;
+#if ESD
 	mine_pdev = pdev;//Taylor
 	mine_mfd = mfd;//Taylor
 	fbi = mfd->fbi;//Taylor
+#endif
 	pr_err("%s: MIPI init cmd start\n",__func__);
 
 #if 1
@@ -412,11 +443,12 @@ static int mipi_chimei_lcd_on(struct platform_device *pdev)
 //		mipi_chimei_manufacture_id(mfd);
 
 	//Taylor--B
+#if ESD
 	lcd_on = 1;
 	read_val = read_back_information();
 	if (!read_val){
 		//mipi_timeout=0;
-		wrtie_mipi_state(0);
+		//wrtie_mipi_state(0);
 		if (chimei_recover){
 			if (esd_lock == 1){
 				wake_unlock(&esd_wakelock);
@@ -430,6 +462,7 @@ static int mipi_chimei_lcd_on(struct platform_device *pdev)
 	}
 
 	schedule_delayed_work(&power_state_detect, msecs_to_jiffies(100)); //schedule the next poll operation
+#endif
 	//Taylor--E
 	pr_err("%s: MIPI init cmd end\n",__func__);
 
@@ -448,10 +481,12 @@ static int mipi_chimei_lcd_off(struct platform_device *pdev)
 		return -EINVAL;
 #if 1
 	//if (mipi_timeout){
+	/*	
 	if (read_mipi_state()){
 		lcd_on = 0;
 		return 0;
 	}
+	*/
 
 	cmdreq_chimei.cmds = chimei_display_off_cmds;
 	cmdreq_chimei.cmds_cnt = ARRAY_SIZE(chimei_display_off_cmds);
@@ -470,22 +505,28 @@ static int mipi_chimei_lcd_off(struct platform_device *pdev)
 		led_trigger_event(bkl_led_trigger, 0);
 	}
 
-	cci_fb_UpdateDone=0; //Taylor--20121105
+	//cci_fb_UpdateDone=0; //Taylor--20121105
+#if ESD
 	lcd_on = 0;//Taylor
+#endif
 	return 0;
 }
 
 static void mipi_chimei_set_backlight(struct msm_fb_data_type *mfd)
 {
+	/*
 	if (!cci_fb_UpdateDone){
 		printk("Taylor: No BL before LCM on\n");
 		return;
 	}
+	*/
 
 	if ((mipi_chimei_pdata->enable_wled_bl_ctrl)
 	    && (wled_trigger_initialized)) {
 		pr_debug("Taylor: chimei BL=%d\n",mfd->bl_level);
+		#if ESD
 		bl_backup = mfd->bl_level;
+		#endif
 		led_trigger_event(bkl_led_trigger, mfd->bl_level);
 		return;
 	}
@@ -521,7 +562,9 @@ static int __devinit mipi_chimei_lcd_probe(struct platform_device *pdev)
 	}
 
 	current_pdev = msm_fb_add_device(pdev);
+	#if ESD
 	pdev_backup = current_pdev;//Taylor
+	#endif
 
 	if (current_pdev) {
 		mfd = platform_get_drvdata(current_pdev);
@@ -539,7 +582,7 @@ static int __devinit mipi_chimei_lcd_probe(struct platform_device *pdev)
 			mipi->dlane_swap = dlane_swap;
 	}
 
-	wake_lock_init(&esd_wakelock, WAKE_LOCK_SUSPEND, "CHIMEI_ESD_WAKE_LOCK");
+	//wake_lock_init(&esd_wakelock, WAKE_LOCK_SUSPEND, "CHIMEI_ESD_WAKE_LOCK");
 	return 0;
 }
 
@@ -612,9 +655,11 @@ static int mipi_chimei_lcd_init(void)
 
 	mipi_dsi_buf_alloc(&chimei_tx_buf, DSI_BUF_SIZE);
 	mipi_dsi_buf_alloc(&chimei_rx_buf, DSI_BUF_SIZE);
-
+	
+	#if ESD
 	INIT_DELAYED_WORK(&power_state_detect, power_state_detect_work);
-	INIT_WORK(&esd_work, check_state_work);;
+	//INIT_WORK(&esd_work, check_state_work);
+	#endif
 
 
 	return platform_driver_register(&this_driver);
