@@ -1159,9 +1159,7 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	int *id;
 	int fbram_offset;
 	int remainder, remainder_mode2;
-	#ifdef CONFIG_CCI_KLOG
-     unsigned int unknownrebootflag = 0xAAAAAAAA;
-    #endif
+	unsigned int unknownrebootflag = 0xAAAAAAAA;
 	/*
 	 * fb info initialization
 	 */
